@@ -45,16 +45,16 @@ bool is_valid(){
 
 }
 void return_start(int length){
-    printf("RETURN START FUNCTION length = %d \n",length);
+    printf("RETURN_START FUNCTION STARTED \n");
     for (i = 1 ; i < length; i++){
         board[changed[i][0]][changed[i][1]]->color = 0;
     }
-    //changed = (int**)realloc(changed, 1 * sizeof(int*));
+
     i2 = 2;
-    printf("RETURN START FUNCTION END\n");
+    printf("RETURN_START FUNCTION ENDED \n");
 }
 int horizontal_points(int color){
-    printf("HORIZONTAL POINTS FUNCTION\n");
+    printf("HORIZONTAL_POINTS FUNCTION STARTED \n");
     point_result = 0;
     for(i = 0; i < 8; i++){
         point_result += length;
@@ -86,7 +86,7 @@ int horizontal_points(int color){
     return point_result;
 }
 int vertical_points(int color){
-    printf("VERTICAL POINTS FUNCTION\n");
+    printf("VERTICAL_POINTS FUNCTION STARTED \n");
     point_result = 0;
     for(j = 0; j < 8; j++){
         point_result += length;
@@ -118,8 +118,7 @@ int vertical_points(int color){
     return point_result;
 }
 int diagonal_points_45(int color){
-    printf("DIAGONAL POINTS 45 FUNCTION\n");
-    // i > 3 iken kontrol et
+    printf("DIAGONAL_POINTS_45 FUNCTION STARTED \n");
     point_result = 0;
 
     for(m = 7; m > 3; m--){
@@ -160,7 +159,6 @@ int diagonal_points_45(int color){
                 i--;
                 k++;
             }
-
         }
         if (length_pos > 5){
             length_pos = 0;
@@ -172,8 +170,7 @@ int diagonal_points_45(int color){
     return point_result;
 }
 int diagonal_points_135(int color){
-    printf("DIAGONAL POINTS 135 FUNCTION\n");
-    // m > 3 iken kontrol et
+    printf("DIAGONAL_POINTS_135 FUNCTION STARTED \n");
     point_result = 0;
 
     for(m = 7; m > 3; m--){
@@ -227,23 +224,17 @@ int diagonal_points_135(int color){
 }
 
 int marble_area_points(int color){
-    printf("MARBLE AREA POINTS FUNCTION\n");
-    // red = 27 black = 28
-    //red_count = 0;
-    //black_count = 0;
-
-    //while(red_count < 27){
-
-    //}
+    printf("MARBLE_AREA_POINTSFUNCTION STARTED\n");
+    
     return 0;
 }
 int place_area_points(int color){
-    printf("PLACE AREA POINTS FUNCTION\n");
+    printf("PLACE_AREA_POINTS FUNCTION STARTED\n");
     return 0;
 }
 void check_point(int color, int x,int y,int length){
-    printf("CHECK POINT FUNCTION x = %d y = %d length = %d\n",x,y,length);
-    printf("n = %d\n",n);
+    printf("CHECK_POINT FUNCTION  STARTED \n");
+    
     decision_array = (int**)realloc(decision_array, n * sizeof(int*));
     decision_array[n-1] = (int*)malloc(3 * sizeof(int));
     length_of_decision_array = n;
@@ -274,8 +265,7 @@ void search(int color, int x,  int y, int step,int x_start,int y_start){
     else{
     step--;
     for (i = 0;i < 4;i++){
-        if (step == 4)
-        printf("HEREEEEEEEEEEEEEEEEEEEEEEEEE i = %d\n",i);
+        
         if (step == 3){
         x_start = x;
         y_start = y;
@@ -292,16 +282,16 @@ void search(int color, int x,  int y, int step,int x_start,int y_start){
             changed[i2][0] = i ;
             changed[i2][1] = j ;
             i2++;
-            printf("OTHER SEARCHHHHHHHHHHH step = %d\n",step);
+            
             search(color,h,j,step,x_start,y_start);
-            printf("OTHER SEARCHHHHHHHHHHH END\n");
+            
         }
 
     }
     }
 }
 int* best_place(int color,int x,int y,int step){
-    printf("BEST PLACE FUNCTION x = %d y = %d\n",x,y);
+    printf("BEST_PLACE FUNCTION STARTED \n");
     x_start = x;
     y_start = y;
     if(color == 1){
@@ -319,7 +309,7 @@ int* best_place(int color,int x,int y,int step){
     max_index = 0;
     printf("length_of_decision_array = %d\n",length_of_decision_array);
     for(i = 1; i < length_of_decision_array;i++){
-        printf("decision array = %d\n",decision_array[i][2]);
+        
         if(decision_array[i][2] > decision_array[max_index][2]){
             max_index = i;
         }
@@ -330,11 +320,10 @@ int* best_place(int color,int x,int y,int step){
     return result;
 }
 int main(){
-    printf("MAIN FUNC\n");
+    printf("MAIN FUNC STARTED\n");
     int i1,j1;
-    //n = 1;
     decision_array = (int**)malloc(1 * sizeof(int*));
-    //decision_array[0] = (int*)malloc(3 * sizeof(int));
+   
 
     changed = (int**)malloc(1 * sizeof(int*));
     changed[0] = (int*)malloc(2 * sizeof(int));
@@ -417,18 +406,3 @@ int main(){
 
     return 0;
 }
-// CHANGED arrayi deque yapısı gibi çalışacak if bloğunda kontrol etmeye gerek yok
-    // CHECK POINT İLK FONKSİYON İLE ÇAĞIRILIP BOŞALTIĞINDA DİĞERLERİNE SIKINTI YARATIYOR
-
-    // NEDEN ALTTAKI FOR KISMI İLK KISIMDA SADECE 1 KERE ÇALIŞIYO
-    // İLK KISIMDA 1 KERE ÇALIŞIYOR ÇÜNKÜ STEP 0 OLUYOR VE RETURN POINT FONKSİYONU ÇAĞRILIYOR
-    // ÇAĞIRILIYORSA NEDEN SONRAKİ FOR KISMI ÇALIŞMIYO
-    // ÇÜNKÜ RETURN POINT FONKSİYONU ÇAĞRILDIĞINDA CHANGED ARRAYİNİN BOŞALTILMASI GEREKİYOR (HAYIR AMA İŞLEM YAPPILÖMALI)
-    // AMA CHANGED ARRAY FOR DÖNGÜSÜNÜ ETKİLEMİYOR
-    // 
-
-    // RETURN POINT FONKSİYONU ÇAĞRILDIĞINDA CHANGED ARRAYİNİN BOŞALTILMASI GEREKİYOR (HAYIR AMA İŞLEM YAPPILÖMALI)
-    // CHANGED ARRAYİNİN BOŞALTILMASI İÇİN İKİNCİ KISIMDA TEKRAR ÇAĞRILAN SEARCH FONKSİYONUNDA BOŞALTILMASI GEREKİYOR
-    // İKİNCİ KISIMDA TEKRAR ÇAĞRILAN SEARCH FONKSİYONUNDA BOŞALTILMASI İÇİN RETURN START FONKSİYONU ÇAĞRILMALI
-    
-    // BİRİNCİDEN SONRA YENİ YER SEÇİLDİĞİNDE RETURN START FUNC ÇAĞRILMIYO 
