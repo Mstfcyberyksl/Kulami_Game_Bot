@@ -414,7 +414,7 @@ void* place_area_points(void *arg){
 }
 
 
-int calculate(int color, int board[8][8]){
+int* calculate(int color, int board[8][8]){
     // don't forget to free the results
 
     printf("CALCULATE FUNCTION\n");
@@ -443,19 +443,29 @@ int calculate(int color, int board[8][8]){
     pthread_join(threads2[3],(void**)&result[3]);
     pthread_join(threads2[4],(void**)&result[4]);
     pthread_join(threads2[5],(void**)&result[5]);
-    
-    return *result[0] + *result[1] + *result[2] + *result[3] + *result[4] + *result[5];
+
+    int* sum = (int*)malloc(1 * sizeof(int));
+    *sum = *result[0] + *result[1] + *result[2] + *result[3] + *result[4] + *result[5];
+    return sum;
     
     
 }
 
 
-int which(int x, int y){
+int* which(int x, int y){
     whichcount++;
-    int i,j;
-    for (i = 0;i < 17;i++){
-        for (j = 1;j < 2 * frames[i][0];j += 2){
-            if (frames[i][j] == x && frames[i][j+1] == y){
+    int j;
+    int *i = (int*)malloc(1 * sizeof(int));
+    if (i == NULL) {
+        perror("Failed to allocate memory");
+        int* a = (int*)malloc(1 * sizeof(int));
+        *a = -1;
+        return a;
+    }
+    
+    for (*i = 0;*i < 17;*i++){
+        for (j = 1;j < 2 * frames[*i][0];j += 2){
+            if (frames[*i][j] == x && frames[*i][j+1] == y){
                 return i;
             }
         }
@@ -478,7 +488,7 @@ typedef struct {
     int result[33];
 }Data;
 
-int append(Data *data){
+void append(Data *data){
     printf("APPEND FUNCTION\n");
     
     
@@ -490,7 +500,7 @@ int append(Data *data){
     fprintf(file, "\n");
     printf("APPENDED\n");
     
-    return 0;
+    
 }
 
 void* search(void *arg){
@@ -531,14 +541,12 @@ void* search(void *arg){
     
     board[x][y] = color;
     if (step == 0){
-        invalid[0] = calculate(2,board);
+        invalid[0] = *calculate(2,board);
         invalid[1] = -1;
         free(result);
         data->result[0] = invalid[0];
         
-        if (append(data) == -1){
-            printf("APPEND ERROR\n");
-        }
+        append(data);
         return invalid;
     }
     
@@ -623,7 +631,8 @@ void* search(void *arg){
                 array[length-1][0] = *results[k];
             } else {
                 array[length-1][0] = -1;
-                printf("results[%d] is NULL!\n", k);
+                // burda null veriyo aslında vermemesi lzm bence burda bir sorun var
+                printf("results[%d] is NULL!\n", k); 
             }
             
             //printf("results[%d] = %d\n",k,*results[k]);
@@ -736,7 +745,7 @@ int main(){
         for(j = 0;j < 8;j++){
             newnode[i][j] = (Node*)malloc(sizeof(Node));
             
-            newnode[i][j]->frame = which(i,j);
+            newnode[i][j]->frame = *which(i,j);
         }
     }
 
