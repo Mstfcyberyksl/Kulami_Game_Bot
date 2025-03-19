@@ -50,12 +50,15 @@ void* horizontal_points(void *arg){
 
     int* result = malloc(sizeof(int));
     if (result == NULL) {
-        perror("Failed to allocate memory");
+        perror("Failed to allocate memory horizontal");
         pthread_exit(NULL);
     }
 
     Data2* data = (Data2*)arg;
-    int board[8][8];
+    int** board = (int**)malloc(8 * sizeof(int*));
+    for (i = 0;i < 8;i++){
+        board[i] = (int*)malloc(8 * sizeof(int));
+    } 
     memcpy(board,data->board,sizeof(board));
 
     int color = data->color;
@@ -98,13 +101,16 @@ void* vertical_points(void *arg){
     int i,j,length = 0,pc = 0,user = 0;
 
     Data2* data = (Data2*)arg;
-    int board[8][8];
+    int** board = (int**)malloc(8 * sizeof(int*));
+    for (i = 0;i < 8;i++){
+        board[i] = (int*)malloc(8 * sizeof(int));
+    } 
     memcpy(board,data->board,sizeof(board));
     int color = data->color;
 
     int* result = malloc(sizeof(int));
     if (result == NULL) {
-        perror("Failed to allocate memory");
+        perror("Failed to allocate memory vertical");
         pthread_exit(NULL);
     }
 
@@ -149,13 +155,16 @@ void* diagonal_points_45(void *arg){
     };
 
     Data2* data = (Data2*)arg;
-    int board[8][8];
+    int** board = (int**)malloc(8 * sizeof(int*));
+    for (i = 0;i < 8;i++){
+        board[i] = (int*)malloc(8 * sizeof(int));
+    } 
     memcpy(board,data->board,sizeof(board));
     int color = data->color;
 
     int* result = malloc(sizeof(int));
     if (result == NULL) {
-        perror("Failed to allocate memory");
+        perror("Failed to allocate memory 45");
         pthread_exit(NULL);
     }
 
@@ -205,13 +214,16 @@ void* diagonal_points_135(void *arg){
     };
 
     Data2* data = (Data2*)arg;
-    int board[8][8] ;
+    int** board = (int**)malloc(8 * sizeof(int*));
+    for (i = 0;i < 8;i++){
+        board[i] = (int*)malloc(8 * sizeof(int));
+    } 
     memcpy(board,data->board,sizeof(board));
     int color = data->color;
 
     int* result = malloc(sizeof(int));
     if (result == NULL) {
-        perror("Failed to allocate memory");
+        perror("Failed to allocate memory 135");
         pthread_exit(NULL);
     }
     
@@ -301,7 +313,7 @@ void remove2(int x, int y){
     }
 }
 
-void helper(int x,int y,int color, int (*board)[8]){
+void helper(int x,int y,int color, int** board){
     area++;
     int directions[4][2] = {
         {1,0},{0,1},{-1,0},{0,-1}
@@ -324,17 +336,21 @@ void helper(int x,int y,int color, int (*board)[8]){
 
 void* marble_area_points(void *arg){
     Data2* data = (Data2*)arg;
-    int board[8][8];
+    int i, j;
+    int** board = (int**)malloc(8 * sizeof(int*));
+    for (i = 0;i < 8;i++){
+        board[i] = (int*)malloc(8 * sizeof(int));
+    } 
     memcpy(board,data->board,sizeof(board));
 
     int color = data->color;
 
     int* result = malloc(sizeof(int));
     if (result == NULL) {
-        perror("Failed to allocate memory");
+        perror("Failed to allocate memory marble area");
         pthread_exit(NULL);
     }
-    int i, j;
+    
     oneslen = 0;
     for (i = 0;i < 8;i++){
         for (j = 0;j < 8;j++){
@@ -382,12 +398,15 @@ void* place_area_points(void *arg){
     int* result = malloc(sizeof(int));
 
     Data2* data = (Data2*)arg;
-    int board[8][8];
+    int** board = (int**)malloc(8 * sizeof(int*));
+    for (i = 0;i < 8;i++){
+        board[i] = (int*)malloc(8 * sizeof(int));
+    }
     memcpy(board,data->board,sizeof(board));
     int color = data->color;
 
     if (result == NULL) {
-        perror("Failed to allocate memory");
+        perror("Failed to allocate memory place area");
         pthread_exit(NULL);
     }
 
@@ -414,14 +433,17 @@ void* place_area_points(void *arg){
 }
 
 
-int* calculate(int color, int board[8][8]){
+int* calculate(int color, int** board){
     // don't forget to free the results
 
     printf("CALCULATE FUNCTION\n");
     calculatecount++;
-    
-    int* result[5];
-    pthread_t threads2[6];
+    int i;
+    int** result = (int**)malloc(5 * sizeof(int*));
+    for (i = 0;i < 5;i++){
+        result[i] = (int*)malloc(1 * sizeof(int));
+    }
+    pthread_t* threads2 = (pthread_t*)malloc(6 * sizeof(pthread_t));
     Data2* data3 = (Data2*)malloc(sizeof(Data2));
     data3->color = color;
     for (int i = 0;i < 8;i++){
@@ -446,31 +468,37 @@ int* calculate(int color, int board[8][8]){
 
     int* sum = (int*)malloc(1 * sizeof(int));
     *sum = *result[0] + *result[1] + *result[2] + *result[3] + *result[4] + *result[5];
+    printf("sum = %d\n",*sum);
+    for (i = 0;i < 6;i++){
+        free(result[i]);
+    }
+    free(result);
+    free(data3);
     return sum;
     
     
 }
 
 
-int* which(int x, int y){
+int which(int x, int y){
     whichcount++;
     int j;
-    int *i = (int*)malloc(1 * sizeof(int));
-    if (i == NULL) {
-        perror("Failed to allocate memory");
-        int* a = (int*)malloc(1 * sizeof(int));
-        *a = -1;
-        return a;
-    }
+    int i;
     
-    for (*i = 0;*i < 17;*i++){
-        for (j = 1;j < 2 * frames[*i][0];j += 2){
-            if (frames[*i][j] == x && frames[*i][j+1] == y){
+    
+    for (i = 0;i < 17;i++){
+        for (j = 1;j < 2 * frames[i][0];j += 2){
+            if (frames[i][j] == x && frames[i][j+1] == y){
                 return i;
             }
         }
     }
 }
+// buraya dikkat et 15 olunca 33'ten daha büyük olması gerekebilir 13 için başka 15 için başka hata oldu gibi
+    // daha küçük bir sayı olduğunda geri kalanını -1 yap
+    // aborted hatasını araştır ve bak
+    // 15 için aborted hatası verene kdr ilk buna uğraş sonra aborteda geç
+    // 1 satırdan sonra segmentation fault verdi bu bir işaret
 typedef struct {
     int x;
     int y;
@@ -479,13 +507,8 @@ typedef struct {
     int not_y;
     int color;
     bool ret;
-    int board[8][8];
-    // buraya dikkat et 15 olunca 33'ten daha büyük olması gerekebilir 13 için başka 15 için başka hata oldu gibi
-    // daha küçük bir sayı olduğunda geri kalanını -1 yap
-    // aborted hatasını araştır ve bak
-    // 15 için aborted hatası verene kdr ilk buna uğraş sonra aborteda geç
-    // 1 satırdan sonra segmentation fault verdi bu bir işaret
-    int result[33];
+    int** board;
+    int* result;
 }Data;
 
 void append(Data *data){
@@ -515,13 +538,14 @@ void* search(void *arg){
     int not_y = data->not_y;
     int color = data->color;
     bool ret = data->ret;
-    int board[8][8];
-    int result2[33];
-    memcpy(board,data->board,sizeof(board));
-    memcpy(result2,data->result,sizeof(result2));
-    Data datas[28];
-    pthread_t threads[28];
-    bool created[28];
+    int** board ;
+    int* result2;
+    board = data->board;
+    result2 = data->result;
+    
+    Data** datas = (Data**)malloc(28 * sizeof(Data*));
+    pthread_t* threads = (pthread_t*)malloc(28 * sizeof(pthread_t));
+    bool* created = (bool*)malloc(28 * sizeof(bool));
     for(i = 0;i < 28;i++){
         created[i] = false;
     }
@@ -529,9 +553,11 @@ void* search(void *arg){
     int* result;
     int* invalid;
     searchcount++;
-    invalid = (int*)malloc(2 * sizeof(int));
+    invalid = (int*)malloc(1 * sizeof(int));
     result = (int*)malloc(2 * sizeof(int));
     array = (int**)malloc(1 * sizeof(int*));
+    printf("x = %d,y = %d\n",x,y);
+    printf("%d,%d\n",not_x,not_y);
     if (not_x > -1 && not_y > -1){
         info1 = newnode[not_x][not_y]->frame;
     }else{
@@ -541,10 +567,10 @@ void* search(void *arg){
     
     board[x][y] = color;
     if (step == 0){
-        invalid[0] = *calculate(2,board);
-        invalid[1] = -1;
+        *invalid = *calculate(2,board);
+        
         free(result);
-        data->result[0] = invalid[0];
+        data->result[0] = *invalid;
         
         append(data);
         return invalid;
@@ -560,7 +586,6 @@ void* search(void *arg){
     else{
         printf("COLOR ERROR %d",color);
     }
-    
     printf("LOOP \n");
     for (k = 0;k < 28;k++){
         if ((x + directions[k][0] != not_x || 
@@ -574,74 +599,61 @@ void* search(void *arg){
             newnode[x + directions[k][0]][y + directions[k][1]]->frame != info2){
 
             length++;
-            // this line added newly 
-            // buraya çok dikkat et ilerde sonuç yanlış çıkarsa buraya bak
+            datas[k] = (Data*)malloc(sizeof(Data));
             board[x + directions[k][0]][y + directions[k][1]] = color;
             array = (int**)realloc(array,length * sizeof(int*));
             array[length-1] = (int*)malloc(3 * sizeof(int));
-            datas[k].x = x + directions[k][0];
-            datas[k].y = y + directions[k][1];
-            datas[k].step = step - 1;
-            datas[k].not_x = x;
-            datas[k].not_y = y;
-            datas[k].color = color;
-            datas[k].ret = false;
-            for (i = 0;i < 8;i++){
-                for (j = 0;j < 8;j++){
-                    datas[k].board[i][j] = board[i][j];
-                }
+            datas[k]->x = x + directions[k][0];
+            printf("x = %d\n",x + directions[k][0]);
+            printf("datas[k]->x = %d\n",datas[k]->x);
+            datas[k]->y = y + directions[k][1];
+            datas[k]->step = step - 1;
+            datas[k]->not_x = x;
+            datas[k]->not_y = y;
+            datas[k]->color = color;
+            datas[k]->ret = false;
+            datas[k]->board = (int**)malloc(8 * sizeof(int*));
+            for (i = 0; i < 8; i++) {
+                datas[k]->board[i] = (int*)malloc(8 * sizeof(int));
+                memcpy(datas[k]->board[i], board[i], 8 * sizeof(int));
             }
-            // burda belli durumlarda index out of bound olabilir
-            printf("step = %d\n",step);
-            printf("genstep = %d\n",genstep);
+            if ((2*genstep)-(2*step)+3 >= 33){
+                printf("INDEX OUT OF BOUNDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD\n");
+            }
             result2[(2*genstep)-(2*step)+3] = x + directions[k][0];
             result2[(2*genstep)-(2*step)+4] = y + directions[k][1];
-            for (i = 0;i < 33;i++){
-                datas[k].result[i] = result2[i];
-            }
-            
-            pthread_create(&threads[k],NULL,search,(void*)&datas[k]);
+            datas[k]->result = (int*)malloc(33 * sizeof(int));
+            memcpy(datas[k]->result, result2, 33 * sizeof(int));
+            pthread_create(&threads[k],NULL,search,(void*)datas[k]);
             created[k] = true;
             array[length-1][1] = x + directions[k][0];
             array[length-1][2] = y + directions[k][1];
-            
             board[x + directions[k][0]][y + directions[k][1]] = 0;
-
         }
     }
-
     printf("LOOP DONE\n");
-    // here may be the problem
-    // pay attention to array[length-1] part it may also be array[k]
-    int* results[28];
-    
-    for(k = 0;k < 28;k++){
-        if (created[k]){
-        
-        pthread_join(threads[k],(void**)&results[k]);
-        
-        }  
-    }
+    int** results = (int**)malloc(28 * sizeof(int*));
     length = 0;
     for(k = 0;k < 28;k++){
         if (created[k]){
             length++;
-            if (results[k] != NULL) {
-                printf("results[%d] = %d\n", k, *results[k]);
+            // en son burda kaldın muhtemelen threads[k]'de olan thread idyi bulamıyo daha önceden created[k]
+            // kısmında yanlışlık olmuştu created[k]'nin doğru çalıştığından emin ol 
+            // olmazsa results[k] kısmında pointer olayına dikkat et
+            pthread_join(threads[k],(void**)&results[k]);
+            printf("length = %d\n",length);
+            if (results[k] != NULL){
+                printf("*results[k] = %d\n",*results[k]);
                 array[length-1][0] = *results[k];
-            } else {
-                array[length-1][0] = -1;
-                // burda null veriyo aslında vermemesi lzm bence burda bir sorun var
-                printf("results[%d] is NULL!\n", k); 
+            }else{
+                printf("NULLLLLLLLLLLLLLLLLLLLLLLLL\n");
             }
             
-            //printf("results[%d] = %d\n",k,*results[k]);
-            
-        }
+        }  
     }
+    
     for(i = 0;i < length;i++){
         if (array[i][0] > maximum){
-            
             maximum = array[i][0];
             result[0] = array[i][1];
             result[1] = array[i][2];
@@ -650,14 +662,11 @@ void* search(void *arg){
     }
     free(array);
     if (ret){
-        free(invalid);
         return (void*)result;
     }
     invalid[0] = maximum;
-    invalid[1] = -1;
-    free(result);
+    
     return (void*)invalid;
-
 }
 
 int* best_place(int x, int y,int step, int lx, int ly){
@@ -692,11 +701,17 @@ int* best_place(int x, int y,int step, int lx, int ly){
     data.not_y = ly;
     data.color = 2;
     data.ret = true;
+    int** board3 = (int**)malloc(8 * sizeof(int*));
+    for (i = 0;i < 8;i++){
+        board3[i] = (int*)malloc(8 * sizeof(int));
+    }
     for (i = 0;i < 8;i++){
         for (j = 0;j < 8;j++){
-            data.board[i][j] = board2[i][j];
+            board3[i][j] = board2[i][j];
         }
     }
+    data.board = board3;
+    
     data.result[1] = x;
     data.result[2] = y;
     temp = (int*)search((void*)&data);
@@ -745,7 +760,7 @@ int main(){
         for(j = 0;j < 8;j++){
             newnode[i][j] = (Node*)malloc(sizeof(Node));
             
-            newnode[i][j]->frame = *which(i,j);
+            newnode[i][j]->frame = which(i,j);
         }
     }
 
