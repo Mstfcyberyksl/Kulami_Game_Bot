@@ -13,7 +13,7 @@ int board2[8][8];
 FILE* file ;
 typedef struct {
     int color;
-    int board[8][8];
+    int** board;
 } Data2;
 
 typedef struct Node {
@@ -58,15 +58,16 @@ void* horizontal_points(void *arg){
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
+        memcpy(board[i],data->board[i],8 * sizeof(int));
     } 
-    memcpy(board,data->board,sizeof(board));
+    //memcpy(board,data->board,sizeof(board));
 
     int color = data->color;
 
     for (i = 0;i < 8;i++){
         for (j = 1;j < 8;j++){
             
-            if (board[i][j-1] == board[i][j]){
+            if (j-1 > -1 && board[i][j-1] == board[i][j]){
                 length++;
             }
             else{
@@ -95,7 +96,7 @@ void* horizontal_points(void *arg){
     }
     *result = pc - user;
     
-    return result;
+    return (void*)result;
 }
 void* vertical_points(void *arg){
     int i,j,length = 0,pc = 0,user = 0;
@@ -104,8 +105,9 @@ void* vertical_points(void *arg){
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
+        memcpy(board[i],data->board[i],8 * sizeof(int));
     } 
-    memcpy(board,data->board,sizeof(board));
+    
     int color = data->color;
 
     int* result = malloc(sizeof(int));
@@ -117,7 +119,7 @@ void* vertical_points(void *arg){
     for (j = 0;j < 8;j++){
         for (i = 1;i < 8;i++){
             
-            if (board[i-1][j] == board[i][j]){
+            if (i-1 > -1 && board[i-1][j] == board[i][j]){
                 length++;
             }
             else{
@@ -146,7 +148,7 @@ void* vertical_points(void *arg){
     }
    
     *result = pc - user;
-    return result;
+    return (void*)result;
 }
 void* diagonal_points_45(void *arg){
     int i , length = 0, pc = 0, user = 0,x,y;
@@ -158,8 +160,8 @@ void* diagonal_points_45(void *arg){
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
+        memcpy(board[i],data->board[i],8 * sizeof(int));
     } 
-    memcpy(board,data->board,sizeof(board));
     int color = data->color;
 
     int* result = malloc(sizeof(int));
@@ -173,7 +175,7 @@ void* diagonal_points_45(void *arg){
         x = places[i][0];
         y = places[i][1];
         length = 1;
-        while (x < 8 && y < 8){
+        while (x < 8 && y < 8 && x > -1 && y > -1){
             if (x+1 < 8 && x+1 > -1 && y-1 < 8 && y-1 > -1 &&  board[x][y] == board[x+1][y-1]){
                 length++;
             }
@@ -204,7 +206,7 @@ void* diagonal_points_45(void *arg){
     }
 
     *result = pc - user;
-    return result;
+    return (void*)result;
     
 }
 void* diagonal_points_135(void *arg){
@@ -217,8 +219,8 @@ void* diagonal_points_135(void *arg){
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
+        memcpy(board[i],data->board[i],8 * sizeof(int));
     } 
-    memcpy(board,data->board,sizeof(board));
     int color = data->color;
 
     int* result = malloc(sizeof(int));
@@ -266,7 +268,7 @@ void* diagonal_points_135(void *arg){
     }
 
     *result = pc - user;
-    return result;
+    return (void*)result;
 }
 int dfs(int i,int j,int color,int (*board)[8]){
     int k,m,n,temp = 0;
@@ -340,8 +342,8 @@ void* marble_area_points(void *arg){
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
+        memcpy(board[i],data->board[i],8 * sizeof(int));
     } 
-    memcpy(board,data->board,sizeof(board));
 
     int color = data->color;
 
@@ -389,7 +391,7 @@ void* marble_area_points(void *arg){
     }
 
     *result = maximum;
-    return result;
+    return (void*)result;
 }
     
     
@@ -401,8 +403,8 @@ void* place_area_points(void *arg){
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
+        memcpy(board[i],data->board[i],8 * sizeof(int));
     }
-    memcpy(board,data->board,sizeof(board));
     int color = data->color;
 
     if (result == NULL) {
@@ -429,14 +431,14 @@ void* place_area_points(void *arg){
         }
     }
     *result = length;
-    return result;
+    return (void*)result;
 }
 
 
 int* calculate(int color, int** board){
     // don't forget to free the results
 
-    printf("CALCULATE FUNCTION\n");
+    printf("CALCULATE FUNCTIONNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN\n");
     calculatecount++;
     int i;
     int** result = (int**)malloc(5 * sizeof(int*));
@@ -446,18 +448,18 @@ int* calculate(int color, int** board){
     pthread_t* threads2 = (pthread_t*)malloc(6 * sizeof(pthread_t));
     Data2* data3 = (Data2*)malloc(sizeof(Data2));
     data3->color = color;
+    data3->board = (int**)malloc(8 * sizeof(int*));
     for (int i = 0;i < 8;i++){
-        for (int j = 0;j < 8;j++){
-            data3->board[i][j] = board[i][j];
-        }
+        data3->board[i] = (int*)malloc(8 * sizeof(int));
+        memcpy(data3->board[i],board[i],8 * sizeof(int));
     }
     
-    pthread_create(&threads2[0],NULL,horizontal_points,(void*)&data3);
-    pthread_create(&threads2[1],NULL,vertical_points,(void*)&data3);
-    pthread_create(&threads2[2],NULL,diagonal_points_45,(void*)&data3);
-    pthread_create(&threads2[3],NULL,diagonal_points_135,(void*)&data3);
-    pthread_create(&threads2[4],NULL,place_area_points,(void*)&data3);
-    pthread_create(&threads2[5],NULL,marble_area_points,(void*)&data3);
+    pthread_create(&threads2[0],NULL,horizontal_points,(void*)data3);
+    pthread_create(&threads2[1],NULL,vertical_points,(void*)data3);
+    pthread_create(&threads2[2],NULL,diagonal_points_45,(void*)data3);
+    pthread_create(&threads2[3],NULL,diagonal_points_135,(void*)data3);
+    pthread_create(&threads2[4],NULL,place_area_points,(void*)data3);
+    pthread_create(&threads2[5],NULL,marble_area_points,(void*)data3);
     
     pthread_join(threads2[0],(void**)&result[0]);
     pthread_join(threads2[1],(void**)&result[1]);
@@ -467,7 +469,7 @@ int* calculate(int color, int** board){
     pthread_join(threads2[5],(void**)&result[5]);
 
     int* sum = (int*)malloc(1 * sizeof(int));
-    *sum = *result[0] + *result[1] + *result[2] + *result[3] + *result[4] + *result[5];
+    *sum = *(int*)result[0] + *(int*)result[1] + *(int*)result[2] + *(int*)result[3] + *(int*)result[4] + *(int*)result[5];
     printf("sum = %d\n",*sum);
     for (i = 0;i < 6;i++){
         free(result[i]);
@@ -573,7 +575,7 @@ void* search(void *arg){
         data->result[0] = *invalid;
         
         append(data);
-        return invalid;
+        return (void*)invalid;
     }
     
     if (color == 2){
@@ -637,10 +639,20 @@ void* search(void *arg){
     for(k = 0;k < 28;k++){
         if (created[k]){
             length++;
-            // en son burda kaldın muhtemelen threads[k]'de olan thread idyi bulamıyo daha önceden created[k]
-            // kısmında yanlışlık olmuştu created[k]'nin doğru çalıştığından emin ol 
-            // olmazsa results[k] kısmında pointer olayına dikkat et
-            pthread_join(threads[k],(void**)&results[k]);
+            
+            results[k] = (int*)malloc(sizeof(int));
+            void* thread_result;
+            int resulta = pthread_join(threads[k], &thread_result);
+            if (resulta == 0){
+                results[k] = (int*)thread_result;
+                if (results[k] != NULL){
+                    array[length-1][0] = *results[k];
+                }
+            }else{
+                printf("TRY JOIN ERROR\n");
+            }
+            //pthread_join(threads[k], &thread_result);
+            //results[k] = (int*)thread_result;
             printf("length = %d\n",length);
             if (results[k] != NULL){
                 printf("*results[k] = %d\n",*results[k]);
@@ -664,7 +676,7 @@ void* search(void *arg){
     if (ret){
         return (void*)result;
     }
-    invalid[0] = maximum;
+    *invalid = maximum;
     
     return (void*)invalid;
 }
