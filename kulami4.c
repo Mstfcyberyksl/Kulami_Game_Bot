@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
+//#define THREADSIZE 20
+
+//pthread_t* threads[THREADSIZE];
+//bool running[THREADSIZE];
 // ones array //
 // append function //
 //printf statements
@@ -101,7 +105,15 @@ void* horizontal_points(void *arg){
         
     }
     *result = pc - user;
-    
+    /*printf("board = \n");
+    for(i = 0;i < 8;i++){
+        for(j = 0;j < 8;j++){
+            printf("%d ",board[i][j]);
+        }
+        printf("\n");
+    }
+    printf("pc = %d user = %d result = %d\n",pc,user,*result);*/
+    printf("horizontal = %d\n",*result);
     return (void*)result;
 }
 void* vertical_points(void *arg){
@@ -154,6 +166,7 @@ void* vertical_points(void *arg){
     }
    
     *result = pc - user;
+    printf("vertical = %d\n",*result);
     return (void*)result;
 }
 void* diagonal_points_45(void *arg){
@@ -212,6 +225,7 @@ void* diagonal_points_45(void *arg){
     }
 
     *result = pc - user;
+    printf("diagonal 45 = %d\n",*result);
     return (void*)result;
     
 }
@@ -274,6 +288,7 @@ void* diagonal_points_135(void *arg){
     }
 
     *result = pc - user;
+    printf("diagonal 135 = %d\n",*result);
     return (void*)result;
 }
 int dfs(int i,int j,int color,int (*board)[8]){
@@ -399,6 +414,7 @@ void* marble_area_points(void *arg){
     }
 
     *result = maximum;
+    printf("marble area = %d\n",*result);
     pthread_mutex_unlock(&mutex);
     return (void*)result;   
     
@@ -442,6 +458,7 @@ void* place_area_points(void *arg){
         }
     }
     *result = length;
+    printf("place area = %d\n",*result);
     return (void*)result;
 }
 
@@ -449,7 +466,6 @@ void* place_area_points(void *arg){
 int* calculate(int color, int** board){
     // don't forget to free the results
 
-    printf("CALCULATE FUNCTIONNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN\n");
     calculatecount++;
     int i;
     int** result = (int**)malloc(5 * sizeof(int*));
@@ -481,7 +497,6 @@ int* calculate(int color, int** board){
 
     int* sum = (int*)malloc(1 * sizeof(int));
     *sum = *(int*)result[0] + *(int*)result[1] + *(int*)result[2] + *(int*)result[3] + *(int*)result[4] + *(int*)result[5];
-    printf("sum = %d\n",*sum);
     for (i = 0;i < 6;i++){
         free(result[i]);
     }
@@ -525,7 +540,6 @@ typedef struct {
 }Data;
 
 void append(Data *data){
-    printf("APPEND FUNCTION\n");
     
     
     pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -536,15 +550,13 @@ void append(Data *data){
         fprintf(file,"%d,",data->result[i]);
     }
     fprintf(file, "\n");
-    printf("APPENDED\n");
     pthread_mutex_unlock(&mutex);
     
 }
 
 void* search(void *arg){
     
-    printf("SEARCH FUNCTION\n");
-    int i,j,k,length = 0,maximum = -1,info1,info2;
+    int i,j,k,length = 0,maximum = -1,info1,info2,a,b;
     Data* data = (Data*)arg;
     int x = data->x;
     int y = data->y;
@@ -571,8 +583,6 @@ void* search(void *arg){
     invalid = (int*)malloc(1 * sizeof(int));
     result = (int*)malloc(2 * sizeof(int));
     array = (int**)malloc(1 * sizeof(int*));
-    printf("x = %d,y = %d\n",x,y);
-    printf("%d,%d\n",not_x,not_y);
     if (not_x > -1 && not_y > -1){
         info1 = newnode[not_x][not_y]->frame;
     }else{
@@ -582,6 +592,10 @@ void* search(void *arg){
     
     board[x][y] = color;
     if (step == 0){
+        pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_lock(&mutex);
+        
+        pthread_mutex_unlock(&mutex);
         *invalid = *calculate(2,board);
         
         free(result);
@@ -601,7 +615,6 @@ void* search(void *arg){
     else{
         printf("COLOR ERROR %d",color);
     }
-    printf("LOOP \n");
     for (k = 0;k < 28;k++){
         if ((x + directions[k][0] != not_x || 
             y + directions[k][1] != not_y) && 
@@ -619,8 +632,6 @@ void* search(void *arg){
             array = (int**)realloc(array,length * sizeof(int*));
             array[length-1] = (int*)malloc(3 * sizeof(int));
             datas[k]->x = x + directions[k][0];
-            printf("x = %d\n",x + directions[k][0]);
-            printf("datas[k]->x = %d\n",datas[k]->x);
             datas[k]->y = y + directions[k][1];
             datas[k]->step = step - 1;
             datas[k]->not_x = x;
@@ -646,7 +657,6 @@ void* search(void *arg){
             board[x + directions[k][0]][y + directions[k][1]] = 0;
         }
     }
-    printf("LOOP DONE\n");
     int** results = (int**)malloc(28 * sizeof(int*));
     length = 0;
     for(k = 0;k < 28;k++){
@@ -666,9 +676,7 @@ void* search(void *arg){
             }
             //pthread_join(threads[k], &thread_result);
             //results[k] = (int*)thread_result;
-            printf("length = %d\n",length);
             if (results[k] != NULL){
-                printf("*results[k] = %d\n",*results[k]);
                 array[length-1][0] = *results[k];
             }else{
                 printf("NULLLLLLLLLLLLLLLLLLLLLLLLL\n");
@@ -695,7 +703,7 @@ void* search(void *arg){
 }
 
 int* best_place(int x, int y,int step, int lx, int ly){
-    printf("BEST PLACE FUNCTION\n");
+    printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
     file = fopen("data.txt","a");
     int x_start,y_start;
     x_start = x;
@@ -703,6 +711,9 @@ int* best_place(int x, int y,int step, int lx, int ly){
     
     board2[x][y] = 1;
     int i,j;
+    //for(i = 0;i < THREADSIZE;i++){
+    //    running[i] = false;
+    //}
     genstep = step;
     i = newnode[x][y]->frame;
     if (i != userframe && i != pcframe){
