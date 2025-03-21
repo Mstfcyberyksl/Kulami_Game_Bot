@@ -3,7 +3,13 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-
+// ones array //
+// append function //
+//printf statements
+//puanlar(sum ve result variableları) fazla çıkıyo //board full olma ihtimali belki biraz var ama bence fonklarda sıkıntı var
+// çnk hepsi belli bi renk olsa bile 160ları görmez bence
+// marble area fonksiyonunun race conditionuna ve 
+// fonksiyonlarun döndürdüğü değerlere dikkat et (boardı yazdır manuel kontrol et)
 int marble_result, oneslen = 0, area = 0, userframe = -1, pcframe = -1;
 int whichcount = 0,calculatecount = 0,searchcount = 0;
 int genstep = -1;
@@ -337,6 +343,8 @@ void helper(int x,int y,int color, int** board){
 }
 
 void* marble_area_points(void *arg){
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&mutex);
     Data2* data = (Data2*)arg;
     int i, j;
     int** board = (int**)malloc(8 * sizeof(int*));
@@ -359,7 +367,7 @@ void* marble_area_points(void *arg){
             if (board[i][j] == color){
                 oneslen++;
                 ones = (int**)realloc(ones,oneslen * sizeof(int*));
-                ones[oneslen-1] = (int*)malloc(2 * sizeof(int));
+                ones[oneslen-1] = (int*)malloc(2 * sizeof(int)); // ztn var olan bi alana malloc atamadan gide3bilir
                 ones[oneslen-1][0] = i;
                 ones[oneslen-1][1] = j;
             }
@@ -391,7 +399,10 @@ void* marble_area_points(void *arg){
     }
 
     *result = maximum;
-    return (void*)result;
+    pthread_mutex_unlock(&mutex);
+    return (void*)result;   
+    
+    
 }
     
     
@@ -517,14 +528,16 @@ void append(Data *data){
     printf("APPEND FUNCTION\n");
     
     
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&mutex);
     
     int i;
     for(i = 0;i < 33;i++){
-        fprintf(file,"a = %d,",data->result[i]);
+        fprintf(file,"%d,",data->result[i]);
     }
     fprintf(file, "\n");
     printf("APPENDED\n");
-    
+    pthread_mutex_unlock(&mutex);
     
 }
 
