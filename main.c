@@ -6,24 +6,8 @@
 #include "constants.h"
 #include "calculations.h"
 
-#define THREADSIZE 18
-#define calcfuncsize 6
-
-pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutexgeneral;
-pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_t threads[THREADSIZE-calcfuncsize];
-bool running[THREADSIZE-calcfuncsize];
-int runningthreadsize = 0;
-int area = 0, userframe = -1, pcframe = -1;
-int genstep = -1;
-
-int board2[8][8];
-FILE* file ;
-Node* newnode[8][8];
-
-
-
+// marble area points functionunun dfs fonk kısmındaki check kısmındaki logicini kontrol et yeni bi 
+// fonksiyonda tekrar sıfırlamayı gözden geçir
 
 Data2 copydata2(Data2* data){
     Data2 copy = *data;
@@ -33,6 +17,18 @@ Data2 copydata2(Data2* data){
         copy.board[i] = (int*)malloc(8 * sizeof(int));
         memcpy(copy.board[i], data->board[i], 8 * sizeof(int));
     }    
+    return copy;
+}
+Data copydata(Data* data){
+    Data copy = *data;
+
+    copy.board = (int**)malloc(8 * sizeof(int*));
+    for (int i = 0; i < 8; i++) {
+        copy.board[i] = (int*)malloc(8 * sizeof(int));
+        memcpy(copy.board[i], data->board[i], 8 * sizeof(int));
+    }
+    copy.result = (int*)malloc(33 * sizeof(int));
+    memcpy(copy.result, data->result, 33 * sizeof(int));
     return copy;
 }
 void freedata2(Data2 data){
@@ -63,43 +59,42 @@ int* calculate(int color, int** board){
         yes[i] = true;
     }
     int ab; 
-    Data2 p1 = copydata2(data);
-    Data2 p2 = copydata2(data);
-    Data2 p3 = copydata2(data);
-    Data2 p4 = copydata2(data);
-    Data2 p5 = copydata2(data);
-    Data2 p6 = copydata2(data);
-    ab = pthread_create(&calcthreads[0],NULL,horizontal_points,(void*)&p1);
+    Data2 parray[calcfuncsize];
+    for(i = 0;i < calcfuncsize;i++){
+        parray[i] = copydata2(data);
+    }
+    
+    ab = pthread_create(&calcthreads[0],NULL,horizontal_points,(void*)&parray[0]);
     if (ab != 0){
         yes[0] = false;
         printf("THREAD CREATE ERROR\n");
     }
     
-    ab = pthread_create(&calcthreads[1],NULL,vertical_points,(void*)&p2);
+    ab = pthread_create(&calcthreads[1],NULL,vertical_points,(void*)&parray[1]);
     if (ab != 0){
         yes[1] = false;
         printf("THREAD CREATE ERROR\n");
     }
     
-    ab = pthread_create(&calcthreads[2],NULL,diagonal_points_45,(void*)&p3);
+    ab = pthread_create(&calcthreads[2],NULL,diagonal_points_45,(void*)&parray[2]);
     if (ab != 0){
         yes[2] = false;
         printf("THREAD CREATE ERROR\n");
     }
     
-    ab = pthread_create(&calcthreads[3],NULL,diagonal_points_135,(void*)&p4);
+    ab = pthread_create(&calcthreads[3],NULL,diagonal_points_135,(void*)&parray[3]);
     if (ab != 0){
         yes[3] = false;
         printf("THREAD CREATE ERROR\n");
     }
     
-    ab = pthread_create(&calcthreads[4],NULL,place_area_points,(void*)&p5);
+    ab = pthread_create(&calcthreads[4],NULL,place_area_points,(void*)&parray[4]);
     if (ab != 0){
         yes[4] = false;
         printf("THREAD CREATE ERROR\n");
     }
     
-    ab = pthread_create(&calcthreads[5],NULL,marble_area_points,(void*)&p6);
+    ab = pthread_create(&calcthreads[5],NULL,marble_area_points,(void*)&parray[5]);
     if (ab != 0){
         yes[5] = false;
         printf("THREAD CREATE ERROR\n");
@@ -150,12 +145,9 @@ int* calculate(int color, int** board){
     free(result);
     free(calcthreads);
     free(data);
-    freedata2(p1);
-    freedata2(p2);
-    freedata2(p3);
-    freedata2(p4);
-    freedata2(p5);
-    freedata2(p6);
+    for (i = 0;i < calcfuncsize;i++){
+        freedata2(parray[i]);
+    }
     free(yes);
     return sum;
 }
@@ -185,7 +177,23 @@ void append(Data *data){
 }
 void* search(void *arg){
     printf("SEARCH FUNCTION\n");
-    int i,j,k,length = 0,maximum = -1,info1,info2,a,b;
+    // local variables
+    int i,j,k,length = 0,maximum = -1,frameinfoprev,frameinfocurrent,a,b,usedindex = 0,c;
+    int* used = (int*)malloc((THREADSIZE-calcfuncsize) * sizeof(int));
+    int** results = (int**)malloc(directionsize * sizeof(int*));
+    Data** datas = (Data**)malloc(directionsize * sizeof(Data*));
+    bool* created = (bool*)malloc(directionsize * sizeof(bool));
+    for(i = 0;i < directionsize;i++){
+        created[i] = false;
+    }
+    int** array;
+    array = (int**)malloc(1 * sizeof(int*));
+    int* result;
+    result = (int*)malloc(2 * sizeof(int));
+    int* invalid;
+    invalid = (int*)malloc(1 * sizeof(int));
+
+    // copy datas
     Data* data = (Data*)arg;
     int x = data->x;
     int y = data->y;
@@ -195,32 +203,26 @@ void* search(void *arg){
     int not_y = data->not_y;
     int color = data->color;
     bool ret = data->ret;
-    int** board = (int**)malloc(8 * sizeof(int*));
-    int* result2 = (int*)malloc(33 * sizeof(int));
     int index = data->index;
+    int** board = (int**)malloc(8 * sizeof(int*));
     for(i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
         memcpy(board[i],data->board[i],8 * sizeof(int));
     }
+    int* result2 = (int*)malloc(33 * sizeof(int));
     memcpy(result2, data->result, 33 * sizeof(int));
-    Data** datas = (Data**)malloc(28 * sizeof(Data*));
-    bool* created = (bool*)malloc(28 * sizeof(bool));
-    for(i = 0;i < 28;i++){
-        created[i] = false;
-    }
-    int** array;
-    int* result;
-    int* invalid;
-    invalid = (int*)malloc(1 * sizeof(int));
-    result = (int*)malloc(2 * sizeof(int));
-    array = (int**)malloc(1 * sizeof(int*));
+    // end of copying
+
+    
     if (not_x > -1 && not_y > -1){
-        info1 = newnode[not_x][not_y]->frame;
+        frameinfoprev = newnode[not_x][not_y]->frame;
     }else{
-        info1 = -1;
+        frameinfoprev = -1;
     }
-    info2 = newnode[x][y]->frame;
+    frameinfocurrent = newnode[x][y]->frame;
     board[x][y] = color;
+
+    // base case
     if (step == 0){
         pthread_mutex_lock(&mutexcalcrunning);
         *invalid = *calculate(2,board);
@@ -234,7 +236,9 @@ void* search(void *arg){
         pthread_mutex_unlock(&mutexgeneral);
         return (void*)invalid;
     }
+    // end of base case
     
+    // change colors
     if (color == 2){
         color = 1;
     }
@@ -245,9 +249,10 @@ void* search(void *arg){
     else{
         printf("COLOR ERROR %d",color);
     }
-    int* used = (int*)malloc((THREADSIZE-calcfuncsize) * sizeof(int));
-    int usedindex = 0;
-    for (k = 0;k < 28;k++){
+    // end of changing colors
+
+    // creating new threads
+    for (k = 0;k < directionsize;k++){
         if ((x + directions[k][0] != not_x || 
             y + directions[k][1] != not_y) && 
             x + directions[k][0] < 8 && 
@@ -255,8 +260,8 @@ void* search(void *arg){
             y + directions[k][1] < 8 && 
             y + directions[k][1] > -1 && 
             board[x + directions[k][0]][y + directions[k][1]] == 0 && 
-            newnode[x + directions[k][0]][y + directions[k][1]]->frame != info1 && 
-            newnode[x + directions[k][0]][y + directions[k][1]]->frame != info2){
+            newnode[x + directions[k][0]][y + directions[k][1]]->frame != frameinfoprev && 
+            newnode[x + directions[k][0]][y + directions[k][1]]->frame != frameinfocurrent){
             
             length++;
             datas[k] = (Data*)malloc(sizeof(Data));
@@ -287,7 +292,6 @@ void* search(void *arg){
             if (runningthreadsize != THREADSIZE-calcfuncsize){
                 pthread_mutex_unlock(&mutexgeneral);
 
-                int c;
                 for(c = 0 ; c < THREADSIZE-calcfuncsize;c++){
                     pthread_mutex_lock(&mutexgeneral);
                     if (!running[c]){
@@ -336,7 +340,7 @@ void* search(void *arg){
             board[x + directions[k][0]][y + directions[k][1]] = 0;
         }
     }
-    int** results = (int**)malloc(28 * sizeof(int*));
+    
     length = 0;
     if (ret){
         printf("USED INDEX = %d\n",usedindex);
@@ -382,6 +386,30 @@ void* search(void *arg){
     running[data->index] = false;
     runningthreadsize--;
     pthread_mutex_unlock(&mutexgeneral);
+    free(used);
+    free(created);
+    free(result);
+    free(invalid);
+    free(data);
+    free(result2);
+    for (i = 0;i < 8;i++){
+        free(board[i]);
+    }
+    free(board);
+    for(i = 0;i < length;i++){
+        free(results[i]);
+    }
+    free(results);
+    for (i = 0;i < directionsize;i++){
+        if (created[i]){
+            free(datas[i]->board);
+            free(datas[i]->result);
+            free(datas[i]);
+            // burda double free olabilir
+        }
+    }
+    
+    free(datas);
     if (ret){
         return (void*)result;
     }
@@ -470,21 +498,25 @@ int main(){
             board2[i][j] = 0;
         }
     }
-    // make checked array empty
     checked = (bool**)malloc(8 * sizeof(bool*));
-    for(i = 0;i < 8;i++){
+    for (i = 0;i < 8;i++){
         checked[i] = (bool*)malloc(8 * sizeof(bool));
         for (j = 0;j < 8;j++){
             checked[i][j] = false;
         }
     }
-    
     for (i = 0;i < 8;i++){
         for(j = 0;j < 8;j++){
             newnode[i][j] = (Node*)malloc(sizeof(Node));
             newnode[i][j]->frame = which(i,j);
         }
     }
+    oneslen = 0;
+    genstep = -1;
+    area = 0;
+    userframe = -1;
+    pcframe = -1;
+    runningthreadsize = 0;
 
     return 0;
 }

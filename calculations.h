@@ -257,7 +257,7 @@ int dfs(int i,int j,int color,int (*board)[8]){
     
     k = i;
     m = j;
-    for(n = 0;n < 28;n++){
+    for(n = 0;n < directionsize;n++){
         if (k + directions[n][0] < 8 && 
             k + directions[n][0] > -1 && 
             m + directions[n][1] < 8 &&

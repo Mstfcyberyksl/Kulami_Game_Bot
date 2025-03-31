@@ -3,12 +3,22 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-
-int marble_result,oneslen = 0;
-
+#define THREADSIZE 18
+#define calcfuncsize 6
+#define directionsize 28
+int marble_result,oneslen,genstep,area,userframe,pcframe,runningthreadsize;
+int board2[8][8];
 int** ones;
-
 bool** checked;
+bool running[THREADSIZE-calcfuncsize];
+
+FILE* file ;
+
+
+pthread_mutex_t mutexgeneral;
+pthread_mutex_t mutexcalcrunning;
+pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_t threads[THREADSIZE-calcfuncsize];
 
 int directions[28][2] = {
     {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {0, 6}, {0, 7},
@@ -43,6 +53,7 @@ typedef struct {
 typedef struct Node {
     int frame;
 }Node;
+Node* newnode[8][8];
 
 typedef struct {
     int x;
