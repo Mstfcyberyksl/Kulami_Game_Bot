@@ -3,168 +3,15 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-#include "constants.h"
+//#include "constants.h"
 #include "calculations.h"
 
 // marble area points functionunun dfs fonk kısmındaki check kısmındaki logicini kontrol et yeni bi 
 // fonksiyonda tekrar sıfırlamayı gözden geçir
 
-Data2 copydata2(Data2* data){
-    Data2 copy = *data;
 
-    copy.board = (int**)malloc(8 * sizeof(int*));
-    for (int i = 0; i < 8; i++) {
-        copy.board[i] = (int*)malloc(8 * sizeof(int));
-        memcpy(copy.board[i], data->board[i], 8 * sizeof(int));
-    }    
-    return copy;
-}
-Data copydata(Data* data){
-    Data copy = *data;
-
-    copy.board = (int**)malloc(8 * sizeof(int*));
-    for (int i = 0; i < 8; i++) {
-        copy.board[i] = (int*)malloc(8 * sizeof(int));
-        memcpy(copy.board[i], data->board[i], 8 * sizeof(int));
-    }
-    copy.result = (int*)malloc(33 * sizeof(int));
-    memcpy(copy.result, data->result, 33 * sizeof(int));
-    return copy;
-}
-void freedata2(Data2 data){
-    for (int i = 0; i < 8; i++) {
-        free(data.board[i]);
-    }
-    free(data.board);
-}
-
-int* calculate(int color, int** board){
-    pthread_t* calcthreads = (pthread_t*)malloc(calcfuncsize * sizeof(pthread_t));
-    int calcrunningsize = 0;
-    int i;
-    int** result = (int**)malloc(calcfuncsize * sizeof(int*));
-    for(i = 0;i < calcfuncsize;i++){
-        result[i] = (int*)malloc(sizeof(int));
-    }
-    int resultindex = 0;
-    Data2* data = (Data2*)malloc(sizeof(Data2));
-    data->color = color;
-    data->board = (int**)malloc(8 * sizeof(int*));
-    for (int i = 0;i < 8;i++){
-        data->board[i] = (int*)malloc(8 * sizeof(int));
-        memcpy(data->board[i],board[i],8 * sizeof(int));
-    }
-    bool* yes = (bool*)malloc(calcfuncsize * sizeof(bool));
-    for(i = 0;i < calcfuncsize;i++){
-        yes[i] = true;
-    }
-    int ab; 
-    Data2 parray[calcfuncsize];
-    for(i = 0;i < calcfuncsize;i++){
-        parray[i] = copydata2(data);
-    }
-    
-    ab = pthread_create(&calcthreads[0],NULL,horizontal_points,(void*)&parray[0]);
-    if (ab != 0){
-        yes[0] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[1],NULL,vertical_points,(void*)&parray[1]);
-    if (ab != 0){
-        yes[1] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[2],NULL,diagonal_points_45,(void*)&parray[2]);
-    if (ab != 0){
-        yes[2] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[3],NULL,diagonal_points_135,(void*)&parray[3]);
-    if (ab != 0){
-        yes[3] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[4],NULL,place_area_points,(void*)&parray[4]);
-    if (ab != 0){
-        yes[4] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[5],NULL,marble_area_points,(void*)&parray[5]);
-    if (ab != 0){
-        yes[5] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    if (yes[0]) {
-        ab = pthread_join(calcthreads[0],(void**)&result[0]);
-        if (ab != 0){
-            *result[0] = 0;
-        }
-    }
-    if (yes[1]){ 
-        ab = pthread_join(calcthreads[1],(void**)&result[1]);
-        if (ab != 0){
-            *result[1] = 0;
-        }
-    }
-    if (yes[2]){ 
-        ab = pthread_join(calcthreads[2],(void**)&result[2]);
-        if (ab != 0){
-            *result[2] = 0;
-        }
-    }    
-    if (yes[3]){ 
-        ab = pthread_join(calcthreads[3],(void**)&result[3]);
-        if (ab != 0){
-            *result[3] = 0;
-        }
-    }
-    if (yes[4]){ 
-        ab = pthread_join(calcthreads[4],(void**)&result[4]);
-        if (ab != 0){
-            *result[4] = 0;
-        }
-    }
-    if (yes[5]){ 
-        ab = pthread_join(calcthreads[5],(void**)&result[5]);
-        if (ab != 0){
-            *result[5] = 0;
-        }
-    }
-    int* sum = (int*)malloc(1 * sizeof(int));
-    *sum = *result[0] + *result[1] + *result[2] + *result[3] + *result[4] + *result[5];
-    
-    for(i = 0;i < calcfuncsize;i++){
-        free(result[i]);
-    }
-    free(result);
-    free(calcthreads);
-    free(data);
-    for (i = 0;i < calcfuncsize;i++){
-        freedata2(parray[i]);
-    }
-    free(yes);
-    return sum;
-}
-
-int which(int x, int y){
-    int j;
-    int i;
-    
-    for (i = 0;i < 17;i++){
-        for (j = 1;j < 2 * frames[i][0];j += 2){
-            if (frames[i][j] == x && frames[i][j+1] == y){
-                return i;
-            }
-        }
-    }
-}
-
+//  PRAGMA ONCE 
+// HEADER FİLE'DA BİRDEN FAZLA EKLENEMEME AMA EKLEME OLAYI
 void append(Data *data){
     pthread_mutex_lock(&filemutex);
     
@@ -486,37 +333,4 @@ int* best_place(int x, int y,int step, int lx, int ly){
     }
     fclose(file);
     return temp;
-}
-
-int main(){
-    int i,j;
-    ones = (int**)malloc(1 * sizeof(int*));
-    // make everywhere empty
-
-    for (i = 0;i < 8; i++){
-        for (j = 0;j < 8;j++){
-            board2[i][j] = 0;
-        }
-    }
-    checked = (bool**)malloc(8 * sizeof(bool*));
-    for (i = 0;i < 8;i++){
-        checked[i] = (bool*)malloc(8 * sizeof(bool));
-        for (j = 0;j < 8;j++){
-            checked[i][j] = false;
-        }
-    }
-    for (i = 0;i < 8;i++){
-        for(j = 0;j < 8;j++){
-            newnode[i][j] = (Node*)malloc(sizeof(Node));
-            newnode[i][j]->frame = which(i,j);
-        }
-    }
-    oneslen = 0;
-    genstep = -1;
-    area = 0;
-    userframe = -1;
-    pcframe = -1;
-    runningthreadsize = 0;
-
-    return 0;
 }
