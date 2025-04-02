@@ -7,6 +7,8 @@
 
 #define THREADSIZE 18
 #define calcfuncsize 6
+#define rows 8
+#define columns 8
 
 pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexgeneral;
@@ -316,78 +318,21 @@ void* diagonal_points_135(void *arg){
     free(board);
     return (void*)result;
 }
-int dfs(int i,int j,int color,int (*board)[8]){
+int dfs(int i,int j,int** board,int color){
     int k,m,n,temp = 0;
     
-    checked[i][j] = true;
-    marble_result++;
-    
-    k = i;
-    m = j;
-    for(n = 0;n < 28;n++){
-        if (k + directions[n][0] < 8 && 
-            k + directions[n][0] > -1 && 
-            m + directions[n][1] < 8 &&
-            m + directions[n][1] > -1 && 
-            board[k + directions[n][0]][m + directions[n][1]] == color && 
-            !checked[k + directions[n][0]][m + directions[n][1]]){
-            temp += dfs(k + directions[n][0],m + directions[n][1],color,board);
-        }
+    if (i < 0 || i == rows || j < 0 || j == columns || board[i][j] != color) {
+        return 0;
     }
-
-    return temp+1;
-
+    board[i][j] = 0;
+    return 1 + dfs(i+1,j,board,color) + dfs(i-1,j,board,color) + dfs(i,j+1,board,color) + dfs(i,j-1,board,color);
 }
 
-void remove2(int x, int y){
-    printf("REMOVE %d %d\n",x,y);
-    int i, j;
-    for (i = 0;i < oneslen;i++){
-        if (ones[i][0] == x && ones[i][1] == y){
-            while (i < oneslen-1){
-                ones[i][0] = ones[i+1][0];
-                ones[i][1] = ones[i+1][1];
-                i++;
-            }
-            if (oneslen > 1){
-            ones = (int**)realloc(ones,(oneslen-1) * sizeof(int*));
-            }
-            else if (oneslen == 1){
-                free(ones);
-                ones = NULL;
-            }
-            oneslen--;
-            break;
-        }
-    }
-}
-
-void helper(int x,int y,int color, int** board){
-    area++;
-    int directions[4][2] = {
-        {1,0},{0,1},{-1,0},{0,-1}
-    };
-
-    for (int m = 0; m < 4;m++){
-        if (x + directions[m][0] < 8 && 
-            x + directions[m][0] > -1 && 
-            y + directions[m][1] > -1 && 
-            y + directions[m][1] < 8 && 
-            board[x + directions[m][0]][y + directions[m][1]] == color){
-            if (oneslen > 1){
-            remove2(x + directions[m][0],y + directions[m][1]);
-            helper(x + directions[m][0],y + directions[m][1],color,board);
-            }
-        }
-    }
-    printf("SUCCESS\n");
-}
 
 void* marble_area_points(void *arg){
-    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&mutex);
+    
     Data2* data = (Data2*)arg;
-    int i, j;
+    int i, j,area1 = 0,area2 = 0,temp;
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
@@ -402,48 +347,30 @@ void* marble_area_points(void *arg){
         pthread_exit(NULL);
     }
     
-    oneslen = 0;
-    for (i = 0;i < 8;i++){
-        for (j = 0;j < 8;j++){
-            if (board[i][j] == color){
-                oneslen++;
-                ones = (int**)realloc(ones,oneslen * sizeof(int*));
-                ones[oneslen-1] = (int*)malloc(2 * sizeof(int)); 
-                ones[oneslen-1][0] = i;
-                ones[oneslen-1][1] = j;
+    for(i = 0;i < rows;i++){
+        for(j = 0;j < columns;j++){
+            if(board[i][j] == 1){
+                temp = area1;
+                area1 = dfs(i,j,board,1);
+                if (temp > area1){
+                    area1 = temp;
+                }
+            }else if (board[i][j] == 2){
+                temp = area2;
+                area2 = dfs(i,j,board,2);
+                if (temp > area2){
+                    area2 = temp;
+                }
             }
         }
     }
-    
-    int maximum = -1;
-    int temp[2];
 
-    while (oneslen > 0){
-        area = 0;
-        temp[0] = ones[oneslen-1][0];
-        temp[1] = ones[oneslen-1][1];
-        if (oneslen > 1){
-
-            ones = (int**)realloc(ones,(oneslen-1) * sizeof(int*));
-            oneslen--;
-
-            helper(temp[0],temp[1],color,board);
-        }
-        else{
-            area++;
-            oneslen--;
-        }
-        if (area > maximum){
-            maximum = area;
-        }
-    }
-
-    *result = maximum;
+    *result = area2 - area1;
     for (i = 0;i < 8;i++){
         free(board[i]);
     }
     free(board);
-    pthread_mutex_unlock(&mutex);
+    
     return (void*)result;   
 }
     
@@ -618,9 +545,7 @@ int* calculate(int color, int** board){
     free(calcthreads);
     free(data);
     for(i = 0;i < calcfuncsize;i++){
-        if (yes[i]){
-            free(parray[i].board);
-        }
+        
         freedata2(parray[i]);
     }
     free(parray);
