@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-#include "constants.h"
 #include "calculations.h"
 
 

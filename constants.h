@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -7,19 +8,19 @@
 #define calcfuncsize 6
 #define directionsize 28
 
-int marble_result,oneslen,genstep,area,userframe,pcframe,runningthreadsize;
-int board2[8][8];
-int** ones;
-bool** checked;
-bool running[THREADSIZE-calcfuncsize];
+extern int marble_result,oneslen,genstep,area,userframe,pcframe,runningthreadsize;
+extern int board2[8][8];
+extern int** ones;
+extern bool** checked;
+extern bool running[THREADSIZE-calcfuncsize];
+int which(int x, int y);
+extern FILE* file ;
 
-FILE* file ;
 
-
-pthread_mutex_t mutexgeneral;
-pthread_mutex_t mutexcalcrunning;
-pthread_mutex_t filemutex;
-pthread_t threads[THREADSIZE-calcfuncsize];
+extern pthread_mutex_t mutexgeneral;
+extern pthread_mutex_t mutexcalcrunning;
+extern pthread_mutex_t filemutex;
+extern pthread_t threads[THREADSIZE-calcfuncsize];
 extern int directions[28][2];
 extern int frames[17][13];
 

@@ -4,7 +4,7 @@
 #include <pthread.h>
 #include <string.h>
 #include "constants.h"
-#include "calculations.h"
+
 #define THREADSIZE 18
 #define calcfuncsize 6
 #define directionsize 28
@@ -16,7 +16,11 @@ int userframe = -1;
 int pcframe = -1;
 int runningthreadsize = 0;
 //pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_t threads[THREADSIZE-calcfuncsize];
 
+pthread_mutex_t mutexgeneral;
+pthread_mutex_t mutexcalcrunning;
+pthread_mutex_t filemutex;
 
 int directions[28][2] = {
     {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {0, 6}, {0, 7},
@@ -42,7 +46,7 @@ int frames[17][13] = {{4,0,0,0,1,1,0,1,1,-1,-1,-1,-1},
                     {3,5,5,6,5,7,5,-1,-1,-1,-1,-1,-1},
                     {3,7,2,7,3,7,4,-1,-1,-1,-1,-1,-1},
                     {4,6,6,6,7,7,6,7,7,-1,-1,-1,-1}};
-int which(int x, int y);
+
 
 void initialize(){
     int i,j;

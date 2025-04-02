@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -18,4 +19,4 @@ Data2 copydata2(Data2* data);
 Data copydata(Data* data);
 void freedata2(Data2 data);
 int* calculate(int color, int** board);
-int which(int x, int y);
+//int which(int x, int y);
