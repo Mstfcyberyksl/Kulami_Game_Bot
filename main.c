@@ -3,19 +3,19 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-
+#include <unistd.h>
 
 #define THREADSIZE 18
 #define calcfuncsize 6
 #define rows 8
 #define columns 8
+#define directionsize 28
+
 
 pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutexgeneral;
+pthread_mutex_t mutexgeneral = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_t threads[THREADSIZE-calcfuncsize];
-bool running[THREADSIZE-calcfuncsize];
-int runningthreadsize = 0;
+
 int area = 0, userframe = -1, pcframe = -1;
 int genstep = -1;
 
@@ -28,7 +28,7 @@ int** ones;
 
 bool** checked;
 
-int directions[28][2] = {
+int directions[directionsize][2] = {
     {0, 1}, {0, 2}, {0, 3}, {0, 4}, {0, 5}, {0, 6}, {0, 7},
     {0, -1}, {0, -2}, {0, -3}, {0, -4}, {0, -5}, {0, -6}, {0, -7},
     {1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}, {6, 0}, {7, 0},
@@ -53,10 +53,15 @@ int frames[17][13] = {{4,0,0,0,1,1,0,1,1,-1,-1,-1,-1},
                         {3,7,2,7,3,7,4,-1,-1,-1,-1,-1,-1},
                         {4,6,6,6,7,7,6,7,7,-1,-1,-1,-1}};
 
+void* search(void *arg);
+
 typedef struct {
     int color;
     int** board;
-} Data2;
+    void* (*func)(void*);
+    int result;
+    bool returned;
+}Data2;
 
 typedef struct Node {
     int frame;
@@ -71,9 +76,139 @@ typedef struct {
     int color;
     bool ret;
     int** board;
-    int* result;
+    int* path;
+    int result;
+    bool returned;
     int index;
 }Data;
+
+
+
+// Datadaki indexi niye koydum unuttum
+// boşken çalışmasını engelleme ,bekleme,  BUNA EKSTRA HİÇBİŞEY YAPMAMIZA GEREK OLMAYABİLİR SONUÇTA EXECUTE
+// ETCEK BİŞEY YOKSA NİYE CPU KULLANSIN???
+// tasks arraylerin boyutunu kontrol edecek bir sistem geliştir
+// initialize etmesi var
+// task'ı o arg kısmına ekleyip fonksiyonların return kısmını değiştirmek(sonucu taskin result kısmında saklamak)
+// sonra o tasklerin resultına erişmek
+typedef struct {
+    void* (*func)(void*);
+    Data2 data;
+} Taskcalc;
+
+typedef struct {
+    pthread_t threads[calcfuncsize];
+    Taskcalc* tasks;
+    int tail;
+    int head;
+    int taskcount;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+} Taskcalcpool;
+
+Taskcalcpool calcpool;
+
+Taskcalc calcpop(Taskcalcpool* pool){
+    Taskcalc task;
+    pthread_mutex_lock(&pool->mutex);
+    while (pool->taskcount == 0){
+        pthread_cond_wait(&pool->cond, &pool->mutex);
+    }
+    task = pool->tasks[pool->head];
+    pthread_mutex_unlock(&pool->mutex);
+
+    return task;
+}
+
+void* calcworkers(void* arg){
+    Taskcalcpool* pool = (Taskcalcpool*)arg;
+    while(1){
+        Taskcalc task = calcpop(pool);
+        task.data.result = *(int*)task.func((void*)&task.data);
+        task.data.returned = true;
+        pool->taskcount--; 
+        calcpool.head++;
+        if (calcpool.head == calcfuncsize){
+            calcpool.head = 0;
+        }
+    }
+}
+
+void addcalctask(void* arg){
+    calcpool.tasks[calcpool.tail].func = ((Data2*)arg)->func;
+    calcpool.tail++;
+    calcpool.taskcount++;
+    if (calcpool.tail == calcfuncsize){
+        calcpool.tail = 0;
+    }
+    pthread_cond_signal(&calcpool.cond);
+}
+
+typedef struct {
+    void* (*func)(void*);
+    Data data;
+} Taskgeneral;
+
+typedef struct {
+    pthread_t threads[THREADSIZE-calcfuncsize];
+    Taskgeneral* tasks;
+    int tail;
+    int head;
+    int taskcount;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+} Taskgeneralpool;
+Taskgeneralpool generalpool;
+
+Taskgeneral generalpop(Taskgeneralpool* pool){
+    Taskgeneral task;
+    pthread_mutex_lock(&pool->mutex);
+    while (pool->taskcount == 0){
+        pthread_cond_wait(&pool->cond, &pool->mutex);
+    }
+    task = pool->tasks[pool->head];
+    pthread_mutex_unlock(&pool->mutex);
+    return task;
+}
+void* generalworkers(void* arg){
+    Taskgeneralpool* pool = (Taskgeneralpool*)arg;
+    while(1){
+        Taskgeneral task = generalpop(pool);
+        printf("returned\n");
+        if (task.func == NULL) {
+            printf("ERROR: task.func is NULL!\n");
+        }
+        
+        void* ret = task.func(&task.data);
+        if (ret == NULL) {
+            printf("ERROR: task.func(task.arg) returned NULL!\n");
+            // maybe set result = -1 or something
+        } else {
+            printf("WEIRDOOOOOO\n");
+            task.data.result = *(int*)ret;
+        }
+        task.data.result = *(int*)task.func(&task.data);
+        printf("after\n");
+        printf("%d\n",task.data.result);
+        task.data.returned = true;
+        pool->taskcount--;
+        generalpool.head++;
+        if (generalpool.head == THREADSIZE-calcfuncsize){
+            generalpool.head = 0;
+        }
+    }
+}
+
+void addgeneraltask(void* arg){
+    generalpool.tasks[generalpool.tail].func = search;
+    generalpool.tasks[generalpool.tail].data = *(Data*)arg;
+    generalpool.tail++;
+    generalpool.taskcount++;
+    if (generalpool.tail == calcfuncsize){
+        generalpool.tail = 0;
+    }
+    pthread_cond_signal(&generalpool.cond);
+}
 
 
 void* horizontal_points(void *arg){
@@ -84,12 +219,12 @@ void* horizontal_points(void *arg){
         perror("Failed to allocate memory horizontal");
         pthread_exit(NULL);
     }
-
-    Data2* data = (Data2*)arg;
+    Data2* data = malloc(sizeof(Data2));
+    data = (Data2*)arg;
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
-        memcpy(board[i],data->board[i],8 * sizeof(int));
+        memcpy(board[i],data->board[i],8 * sizeof(int)); // BURA DEĞİŞTİ
     } 
 
     int color = data->color;
@@ -439,7 +574,6 @@ void freedata2(Data2 data){
 
 int* calculate(int color, int** board){
     pthread_t* calcthreads = (pthread_t*)malloc(calcfuncsize * sizeof(pthread_t));
-    int calcrunningsize = 0;
     int i;
     int** result = (int**)malloc(calcfuncsize * sizeof(int*));
     for(i = 0;i < calcfuncsize;i++){
@@ -453,90 +587,34 @@ int* calculate(int color, int** board){
         data->board[i] = (int*)malloc(8 * sizeof(int));
         memcpy(data->board[i],board[i],8 * sizeof(int));
     }
-    bool* yes = (bool*)malloc(calcfuncsize * sizeof(bool));
-    for(i = 0;i < calcfuncsize;i++){
-        yes[i] = true;
-    }
+    
     int ab; 
     Data2* parray = (Data2*)malloc(calcfuncsize * sizeof(Data2));
     for(i = 0;i < calcfuncsize;i++){
         parray[i] = copydata2(data);
     }
+    parray[0].func = horizontal_points;
+    parray[1].func = vertical_points;
+    parray[2].func = diagonal_points_45;
+    parray[3].func = diagonal_points_135;
+    parray[4].func = place_area_points;
+    parray[5].func = marble_area_points;
+    for(i = 0;i < calcfuncsize;i++){
+        parray[i].result = -1;
+        parray[i].returned = false;
+    }
+    addcalctask((void*)&parray[0]);
+    addcalctask((void*)&parray[1]);
+    addcalctask((void*)&parray[2]);
+    addcalctask((void*)&parray[3]);
+    addcalctask((void*)&parray[4]);
+    addcalctask((void*)&parray[5]);
+
     
-    ab = pthread_create(&calcthreads[0],NULL,horizontal_points,(void*)&parray[0]);
-    if (ab != 0){
-        yes[0] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[1],NULL,vertical_points,(void*)&parray[1]);
-    if (ab != 0){
-        yes[1] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[2],NULL,diagonal_points_45,(void*)&parray[2]);
-    if (ab != 0){
-        yes[2] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[3],NULL,diagonal_points_135,(void*)&parray[3]);
-    if (ab != 0){
-        yes[3] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[4],NULL,place_area_points,(void*)&parray[4]);
-    if (ab != 0){
-        yes[4] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    ab = pthread_create(&calcthreads[5],NULL,marble_area_points,(void*)&parray[5]);
-    if (ab != 0){
-        yes[5] = false;
-        printf("THREAD CREATE ERROR\n");
-    }
-    
-    if (yes[0]) {
-        ab = pthread_join(calcthreads[0],(void**)&result[0]);
-        if (ab != 0){
-            *result[0] = 0;
-        }
-    }
-    if (yes[1]){ 
-        ab = pthread_join(calcthreads[1],(void**)&result[1]);
-        if (ab != 0){
-            *result[1] = 0;
-        }
-    }
-    if (yes[2]){ 
-        ab = pthread_join(calcthreads[2],(void**)&result[2]);
-        if (ab != 0){
-            *result[2] = 0;
-        }
-    }    
-    if (yes[3]){ 
-        ab = pthread_join(calcthreads[3],(void**)&result[3]);
-        if (ab != 0){
-            *result[3] = 0;
-        }
-    }
-    if (yes[4]){ 
-        ab = pthread_join(calcthreads[4],(void**)&result[4]);
-        if (ab != 0){
-            *result[4] = 0;
-        }
-    }
-    if (yes[5]){ 
-        ab = pthread_join(calcthreads[5],(void**)&result[5]);
-        if (ab != 0){
-            *result[5] = 0;
-        }
-    }
     int* sum = (int*)malloc(1 * sizeof(int));
-    *sum = *result[0] + *result[1] + *result[2] + *result[3] + *result[4] + *result[5];
+    for(i = 0;i < calcfuncsize;i++){
+        *sum += parray[i].result;
+    }
     
     for(i = 0;i < calcfuncsize;i++){
         free(result[i]);
@@ -549,7 +627,6 @@ int* calculate(int color, int** board){
         freedata2(parray[i]);
     }
     free(parray);
-    free(yes);
     return sum;
 }
 
@@ -571,7 +648,7 @@ void append(Data *data){
     
     int i;
     for(i = 0;i < 33;i++){
-        fprintf(file,"%d,",data->result[i]);
+        fprintf(file,"%d,",data->path[i]);
     }
     fprintf(file, "\n");
     pthread_mutex_unlock(&filemutex);
@@ -595,10 +672,10 @@ void* search(void *arg){
         board[i] = (int*)malloc(8 * sizeof(int));
         memcpy(board[i],data->board[i],8 * sizeof(int));
     }
-    memcpy(result2, data->result, 33 * sizeof(int));
-    Data** datas = (Data**)malloc(28 * sizeof(Data*));
-    bool* created = (bool*)malloc(28 * sizeof(bool));
-    for(i = 0;i < 28;i++){
+    memcpy(result2, data->path, 33 * sizeof(int));
+    Data** datas = (Data**)malloc(directionsize * sizeof(Data*));
+    bool* created = (bool*)malloc(directionsize * sizeof(bool));
+    for(i = 0;i < directionsize;i++){
         created[i] = false;
     }
     int** array;
@@ -619,11 +696,9 @@ void* search(void *arg){
         *invalid = *calculate(2,board);
         pthread_mutex_unlock(&mutexcalcrunning);
         free(result);
-        data->result[0] = *invalid;
+        data->path[0] = *invalid;
         append(data);
         pthread_mutex_lock(&mutexgeneral);
-        running[data->index] = false;
-        runningthreadsize--;
         pthread_mutex_unlock(&mutexgeneral);
         return (void*)invalid;
     }
@@ -640,7 +715,7 @@ void* search(void *arg){
     }
     int* used = (int*)malloc((THREADSIZE-calcfuncsize) * sizeof(int));
     int usedindex = 0;
-    for (k = 0;k < 28;k++){
+    for (k = 0;k < directionsize;k++){
         if ((x + directions[k][0] != not_x || 
             y + directions[k][1] != not_y) && 
             x + directions[k][0] < 8 && 
@@ -652,6 +727,8 @@ void* search(void *arg){
             newnode[x + directions[k][0]][y + directions[k][1]]->frame != info2){
             
             length++;
+            used[usedindex] = k;
+            usedindex++;
             datas[k] = (Data*)malloc(sizeof(Data));
             board[x + directions[k][0]][y + directions[k][1]] = color;
             array = (int**)realloc(array,length * sizeof(int*));
@@ -673,54 +750,12 @@ void* search(void *arg){
             }
             result2[(2*genstep)-(2*step)+3] = x + directions[k][0];
             result2[(2*genstep)-(2*step)+4] = y + directions[k][1];
-            datas[k]->result = (int*)malloc(33 * sizeof(int));
-            memcpy(datas[k]->result, result2, 33 * sizeof(int));
+            datas[k]->path = (int*)malloc(33 * sizeof(int));
+            memcpy(datas[k]->path, result2, 33 * sizeof(int));
+            datas[k]->returned = false;
+            datas[k]->result = -1;
             pthread_mutex_lock(&mutexgeneral);
-            
-            if (runningthreadsize != THREADSIZE-calcfuncsize){
-                pthread_mutex_unlock(&mutexgeneral);
-
-                int c;
-                for(c = 0 ; c < THREADSIZE-calcfuncsize;c++){
-                    pthread_mutex_lock(&mutexgeneral);
-                    if (!running[c]){
-                        datas[k]->index = c;
-                        used[usedindex] = c;
-                        usedindex++;
-                        running[c] = true;
-                        runningthreadsize++;
-                        pthread_mutex_unlock(&mutexgeneral);
-                        int status = pthread_create(&threads[c],NULL,search,(void*)datas[k]);
-                        if (status != 0){
-                            printf("THREAD CREATE ERROR\n");
-                        }
-                        pthread_mutex_lock(&mutexgeneral);
-                        break;
-                    }
-                    pthread_mutex_unlock(&mutexgeneral);
-                }
-            }else{
-                pthread_mutex_unlock(&mutexgeneral);
-                datas[k]->index = index;
-                pthread_mutex_lock(&mutexgeneral);
-                
-                if (!running[index]){
-                    pthread_mutex_unlock(&mutexgeneral);
-                    used[usedindex] = index;
-                    usedindex++;
-                    pthread_mutex_lock(&mutexgeneral);
-                    running[index] = true;
-                    runningthreadsize++;
-                    pthread_mutex_unlock(&mutexgeneral);
-                    int status = pthread_create(&threads[index],NULL,search,(void*)datas[k]);
-                    if (status != 0){
-                        printf("THREAD CREATE ERROR\n");
-                    }
-                }else{
-                    pthread_mutex_unlock(&mutexgeneral);
-                    search((void*)datas[k]);
-                }
-            }
+            addgeneraltask((void*)datas[k]);
             pthread_mutex_unlock(&mutexgeneral);
             
             created[k] = true;
@@ -729,35 +764,17 @@ void* search(void *arg){
             board[x + directions[k][0]][y + directions[k][1]] = 0;
         }
     }
-    int** results = (int**)malloc(28 * sizeof(int*));
-    length = 0;
+    int** results = (int**)malloc(directionsize * sizeof(int*));
     if (ret){
         printf("USED INDEX = %d\n",usedindex);
     }
+
+    
     for(k = 0;k < usedindex;k++){
-            if (ret){
-                printf("k = %d\n",k);
-            }
-            length++;
-            results[k] = (int*)malloc(sizeof(int));
-            void* thread_result;
-            // bura harbi sıkıntı glb
-            int resulta = pthread_join(threads[used[k]], &thread_result);
-            if (resulta == 0){
-                pthread_mutex_lock(&mutexgeneral);
-                running[used[k]] = false;
-                runningthreadsize--;
-                pthread_mutex_unlock(&mutexgeneral);
-                results[k] = (int*)thread_result;
-                if (results[k] != NULL){
-                    array[length-1][0] = *results[k];
-                }else{
-                    printf("NULLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL\n");
-                }
-            }else{
-                array[length-1][0] = 0;
-                printf("TRY JOIN ERROR\n");
-            }
+        while(!datas[used[k]]->returned){
+            
+        }
+        array[used[k]][0] = datas[used[k]]->result;
     }
     if (ret){
         printf("FINALLY\n");
@@ -772,26 +789,45 @@ void* search(void *arg){
     }
     free(array);
     pthread_mutex_lock(&mutexgeneral);
-    running[data->index] = false;
-    runningthreadsize--;
     pthread_mutex_unlock(&mutexgeneral);
     if (ret){
         return (void*)result;
     }
+    
     *invalid = maximum;
     return (void*)invalid;
 }
 
 int* best_place(int x, int y,int step, int lx, int ly){
     int x_start,y_start;
+    int i,j;
     x_start = x;
     y_start = y;
+
+    calcpool.tail = 0;
+    calcpool.head = 0;
+    calcpool.taskcount = 0;
+    calcpool.tasks = (Taskcalc*)malloc(calcfuncsize * sizeof(Taskcalc));
+    pthread_mutex_init(&calcpool.mutex,NULL);
+    pthread_cond_init(&calcpool.cond,NULL);
+    for(i = 0;i < calcfuncsize;i++){
+        pthread_create(&calcpool.threads[i],NULL,calcworkers,&calcpool);
+    }
+    
+    generalpool.tail = 0;
+    generalpool.head = 0;
+    generalpool.taskcount = 0;
+    generalpool.tasks = (Taskgeneral*)malloc((THREADSIZE-calcfuncsize) * sizeof(Taskgeneral));
+    pthread_mutex_init(&generalpool.mutex,NULL);
+    pthread_cond_init(&generalpool.cond,NULL);
+    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
+        pthread_create(&generalpool.threads[i],NULL,generalworkers,&generalpool);
+    }
+    
     
     board2[x][y] = 1;
-    int i,j;
-    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
-        running[i] = false;
-    }
+    
+    
     genstep = step;
     i = newnode[x][y]->frame;
     if (i != userframe && i != pcframe){
@@ -825,17 +861,15 @@ int* best_place(int x, int y,int step, int lx, int ly){
         }
     }
     data.board = board3;
-    data.result = (int*)malloc(33 * sizeof(int));
+    data.path = (int*)malloc(33 * sizeof(int));
     for (i = 3;i < 33;i++){
-        data.result[i] = -1;
+        data.path[i] = -1;
     }
-    data.result[0] = -1;
-    data.result[1] = x;
-    data.result[2] = y;
+    data.path[0] = -1;
+    data.path[1] = x;
+    data.path[2] = y;
     
     data.index = 0;
-    running[0] = true;
-    runningthreadsize++;
     temp = (int*)search((void*)&data);
     board2[temp[0]][temp[1]] = 2;
 
