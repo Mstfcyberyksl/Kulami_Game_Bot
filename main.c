@@ -136,6 +136,7 @@ void* calcworkers(void* arg){
 
 void addcalctask(void* arg){
     calcpool.tasks[calcpool.tail].func = ((Data2*)arg)->func;
+    calcpool.tasks[calcpool.tail].data = *(Data2*)arg;
     calcpool.tail++;
     calcpool.taskcount++;
     if (calcpool.tail == calcfuncsize){
@@ -174,7 +175,6 @@ void* generalworkers(void* arg){
     Taskgeneralpool* pool = (Taskgeneralpool*)arg;
     while(1){
         Taskgeneral task = generalpop(pool);
-        printf("returned\n");
         if (task.func == NULL) {
             printf("ERROR: task.func is NULL!\n");
         }
@@ -219,12 +219,15 @@ void* horizontal_points(void *arg){
         perror("Failed to allocate memory horizontal");
         pthread_exit(NULL);
     }
-    Data2* data = malloc(sizeof(Data2));
-    data = (Data2*)arg;
+    Data2* data = (Data2*)arg;
+    if (!data || !data->board || !data->board[0]) {
+        printf("Invalid board dataaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n");
+    }
+    
     int** board = (int**)malloc(8 * sizeof(int*));
     for (i = 0;i < 8;i++){
         board[i] = (int*)malloc(8 * sizeof(int));
-        memcpy(board[i],data->board[i],8 * sizeof(int)); // BURA DEĞİŞTİ
+        memcpy(board[i],data->board[i],8 * sizeof(int));
     } 
 
     int color = data->color;
@@ -266,6 +269,7 @@ void* horizontal_points(void *arg){
         free(board[i]);
     }
     free(board);
+    printf("HORIZONTAL RESULT = %d\n",*result);
     return (void*)result;
 }
 void* vertical_points(void *arg){
@@ -603,6 +607,7 @@ int* calculate(int color, int** board){
         parray[i].result = -1;
         parray[i].returned = false;
     }
+    printf("HORIZONTAL ADDDEDDDDDDDDDDDDDDDDDDDD\n");
     addcalctask((void*)&parray[0]);
     addcalctask((void*)&parray[1]);
     addcalctask((void*)&parray[2]);
@@ -611,6 +616,12 @@ int* calculate(int color, int** board){
     addcalctask((void*)&parray[5]);
 
     
+    for(i = 0;i < calcfuncsize;i++){
+        while(!parray[i].returned){
+            printf("SLEEP %d\n",i);
+            sleep(1);
+        }
+    }
     int* sum = (int*)malloc(1 * sizeof(int));
     for(i = 0;i < calcfuncsize;i++){
         *sum += parray[i].result;
@@ -623,7 +634,6 @@ int* calculate(int color, int** board){
     free(calcthreads);
     free(data);
     for(i = 0;i < calcfuncsize;i++){
-        
         freedata2(parray[i]);
     }
     free(parray);
@@ -698,8 +708,7 @@ void* search(void *arg){
         free(result);
         data->path[0] = *invalid;
         append(data);
-        pthread_mutex_lock(&mutexgeneral);
-        pthread_mutex_unlock(&mutexgeneral);
+        
         return (void*)invalid;
     }
     
@@ -755,8 +764,14 @@ void* search(void *arg){
             datas[k]->returned = false;
             datas[k]->result = -1;
             pthread_mutex_lock(&mutexgeneral);
-            addgeneraltask((void*)datas[k]);
-            pthread_mutex_unlock(&mutexgeneral);
+            if (generalpool.taskcount >= THREADSIZE-calcfuncsize){
+                pthread_mutex_unlock(&mutexgeneral);
+                search((void*)datas[k]);
+            }
+            else{
+                addgeneraltask((void*)datas[k]);
+                pthread_mutex_unlock(&mutexgeneral);
+            }
             
             created[k] = true;
             array[length-1][1] = x + directions[k][0];
@@ -772,7 +787,8 @@ void* search(void *arg){
     
     for(k = 0;k < usedindex;k++){
         while(!datas[used[k]]->returned){
-            
+            printf("SLEEP aaaaaaaaaaaaaaaaa\n");
+            sleep(1);
         }
         array[used[k]][0] = datas[used[k]]->result;
     }
@@ -788,8 +804,7 @@ void* search(void *arg){
         }
     }
     free(array);
-    pthread_mutex_lock(&mutexgeneral);
-    pthread_mutex_unlock(&mutexgeneral);
+    
     if (ret){
         return (void*)result;
     }
