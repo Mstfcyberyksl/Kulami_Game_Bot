@@ -12,7 +12,7 @@
 #define directionsize 28
 
 // 105 695 794 811
-// generalpoolla alakalı calculate functionlar bitiyo
+// sorun generalpoolla alakalı calculate functionlar bitiyo
 pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -104,12 +104,18 @@ Taskcalcpool calcpool;
 Taskcalc calcpop(){
     Taskcalc task;
     pthread_mutex_lock(&calcpool.mutex);
+    
     // bu conditionları baya özelleştir bundan dolayı taskcount < 0 oluyodur
     // ama sadece eklendiğinde çağırılıyo ._.
-    while (calcpool.taskcount == 0 || calcpool.tasks[calcpool.head].data->returned == true){
+    while (calcpool.taskcount <= 0 ){
         pthread_cond_wait(&calcpool.cond, &calcpool.mutex);
     }
     task = calcpool.tasks[calcpool.head];
+    calcpool.taskcount--; 
+    calcpool.head++;
+    if (calcpool.head >= calcfuncsize){
+        calcpool.head = 0;
+    }
     pthread_mutex_unlock(&calcpool.mutex);
     return task;
 }
@@ -119,13 +125,7 @@ void* calcworkers(void* arg){
         Taskcalc task = calcpop();
         task.data->result = *(int*)task.func((void*)task.data);
         task.data->returned = true;
-        pthread_mutex_lock(&calcpool.mutex);
-        calcpool.taskcount--; 
-        calcpool.head++;
-        if (calcpool.head >= calcfuncsize){
-            calcpool.head = 0;
-        }
-        pthread_mutex_unlock(&calcpool.mutex);
+        
     }
 }
 
@@ -164,16 +164,19 @@ Taskgeneralpool generalpool;
 Taskgeneral generalpop(){
     Taskgeneral task;
     pthread_mutex_lock(&generalpool.mutex);
-    while (generalpool.taskcount == 0){
+    
+    // BU CONDİTİONLARRRRRR
+    while (generalpool.taskcount <= 0){
         pthread_cond_wait(&generalpool.cond, &generalpool.mutex);
     }
     task = generalpool.tasks[generalpool.head];
+    
     generalpool.taskcount--;
     generalpool.head++;
-
-    if (generalpool.head == THREADSIZE-calcfuncsize){
+    if (generalpool.head >= THREADSIZE-calcfuncsize){
         generalpool.head = 0;
     }
+    
     pthread_mutex_unlock(&generalpool.mutex);
     return task;
 }
@@ -186,11 +189,11 @@ void* generalworkers(void* arg){
             printf("ERROR: task.func is NULL!\n");
         }
         
-        void* ret = task.func(task.data);
-        if (ret == NULL) {
+        void* rete = task.func(task.data);
+        if (rete == NULL) {
             printf("ERROR: task.func(task.arg) returned NULL!\n");
         }else {
-            task.data->result = *(int*)ret;
+            task.data->result = *(int*)rete;
         }
         task.data->returned = true;
     }
@@ -578,9 +581,9 @@ void freedata2(Data2 data){
 
 int* calculate(int color, int** board){
     printf("CALCULATE FUNCTION\n");
-    calcpool.tail = 0;
+    /*calcpool.tail = 0;
     calcpool.head = 0;
-    calcpool.taskcount = 0;
+    calcpool.taskcount = 0;*/
     printf("HEYAAAA tail =%d head= %d taskcount = %d\n",calcpool.tail,calcpool.head,calcpool.taskcount);
     pthread_t* calcthreads = (pthread_t*)malloc(calcfuncsize * sizeof(pthread_t));
     int i;
