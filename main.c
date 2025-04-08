@@ -11,7 +11,6 @@
 #define columns 8
 #define directionsize 28
 
-
 pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexgeneral = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
@@ -93,7 +92,7 @@ typedef struct {
 // sonra o tasklerin resultına erişmek
 typedef struct {
     void* (*func)(void*);
-    Data2 data;
+    Data2* data;
 } Taskcalc;
 
 typedef struct {
@@ -111,7 +110,7 @@ Taskcalcpool calcpool;
 Taskcalc calcpop(Taskcalcpool* pool){
     Taskcalc task;
     pthread_mutex_lock(&pool->mutex);
-    while (pool->taskcount == 0){
+    while (pool->taskcount == 0 || pool->tasks[pool->head].data->returned == true){
         pthread_cond_wait(&pool->cond, &pool->mutex);
     }
     task = pool->tasks[pool->head];
@@ -123,26 +122,32 @@ Taskcalc calcpop(Taskcalcpool* pool){
 void* calcworkers(void* arg){
     Taskcalcpool* pool = (Taskcalcpool*)arg;
     while(1){
+        
         Taskcalc task = calcpop(pool);
-        task.data.result = *(int*)task.func((void*)&task.data);
-        task.data.returned = true;
+        
+        task.data->result = *(int*)task.func((void*)task.data);
+        task.data->returned = true;
+        printf("returned\n");
         pool->taskcount--; 
         calcpool.head++;
-        if (calcpool.head == calcfuncsize){
+        if (calcpool.head >= calcfuncsize){
             calcpool.head = 0;
         }
     }
 }
 
 void addcalctask(void* arg){
+    pthread_mutex_lock(&calcpool.mutex);
     calcpool.tasks[calcpool.tail].func = ((Data2*)arg)->func;
-    calcpool.tasks[calcpool.tail].data = *(Data2*)arg;
+    calcpool.tasks[calcpool.tail].data = (Data2*)arg;
     calcpool.tail++;
     calcpool.taskcount++;
     if (calcpool.tail == calcfuncsize){
         calcpool.tail = 0;
     }
     pthread_cond_signal(&calcpool.cond);
+    pthread_mutex_unlock(&calcpool.mutex);
+
 }
 
 typedef struct {
@@ -175,7 +180,7 @@ void* generalworkers(void* arg){
     Taskgeneralpool* pool = (Taskgeneralpool*)arg;
     while(1){
         Taskgeneral task = generalpop(pool);
-        if (task.func == NULL) {
+        if (task.func == NULL) { // bu ve 187'de bişeylik var
             printf("ERROR: task.func is NULL!\n");
         }
         
@@ -184,12 +189,9 @@ void* generalworkers(void* arg){
             printf("ERROR: task.func(task.arg) returned NULL!\n");
             // maybe set result = -1 or something
         } else {
-            printf("WEIRDOOOOOO\n");
             task.data.result = *(int*)ret;
         }
-        task.data.result = *(int*)task.func(&task.data);
-        printf("after\n");
-        printf("%d\n",task.data.result);
+        //task.data.result = *(int*)task.func(&task.data);
         task.data.returned = true;
         pool->taskcount--;
         generalpool.head++;
@@ -200,6 +202,7 @@ void* generalworkers(void* arg){
 }
 
 void addgeneraltask(void* arg){
+    pthread_mutex_lock(&generalpool.mutex);
     generalpool.tasks[generalpool.tail].func = search;
     generalpool.tasks[generalpool.tail].data = *(Data*)arg;
     generalpool.tail++;
@@ -208,6 +211,7 @@ void addgeneraltask(void* arg){
         generalpool.tail = 0;
     }
     pthread_cond_signal(&generalpool.cond);
+    pthread_mutex_unlock(&generalpool.mutex);
 }
 
 
@@ -269,7 +273,6 @@ void* horizontal_points(void *arg){
         free(board[i]);
     }
     free(board);
-    printf("HORIZONTAL RESULT = %d\n",*result);
     return (void*)result;
 }
 void* vertical_points(void *arg){
@@ -577,6 +580,11 @@ void freedata2(Data2 data){
 }
 
 int* calculate(int color, int** board){
+    printf("CALCULATE FUNCTION\n");
+    calcpool.tail = 0;
+    calcpool.head = 0;
+    calcpool.taskcount = 0;
+    printf("HEYAAAA tail =%d head= %d taskcount = %d\n",calcpool.tail,calcpool.head,calcpool.taskcount);
     pthread_t* calcthreads = (pthread_t*)malloc(calcfuncsize * sizeof(pthread_t));
     int i;
     int** result = (int**)malloc(calcfuncsize * sizeof(int*));
@@ -607,7 +615,6 @@ int* calculate(int color, int** board){
         parray[i].result = -1;
         parray[i].returned = false;
     }
-    printf("HORIZONTAL ADDDEDDDDDDDDDDDDDDDDDDDD\n");
     addcalctask((void*)&parray[0]);
     addcalctask((void*)&parray[1]);
     addcalctask((void*)&parray[2]);
@@ -619,6 +626,7 @@ int* calculate(int color, int** board){
     for(i = 0;i < calcfuncsize;i++){
         while(!parray[i].returned){
             printf("SLEEP %d\n",i);
+            printf("tail =%d head= %d taskcount = %d\n",calcpool.tail,calcpool.head,calcpool.taskcount);
             sleep(1);
         }
     }
@@ -626,7 +634,7 @@ int* calculate(int color, int** board){
     for(i = 0;i < calcfuncsize;i++){
         *sum += parray[i].result;
     }
-    
+    printf("FREEEEEE PARTTTTTTTTTTTTTTTT\n");
     for(i = 0;i < calcfuncsize;i++){
         free(result[i]);
     }
@@ -825,6 +833,10 @@ int* best_place(int x, int y,int step, int lx, int ly){
     calcpool.tasks = (Taskcalc*)malloc(calcfuncsize * sizeof(Taskcalc));
     pthread_mutex_init(&calcpool.mutex,NULL);
     pthread_cond_init(&calcpool.cond,NULL);
+    for(i = 0;i < calcfuncsize;i++){
+        calcpool.tasks[i].data = (Data2*)malloc(sizeof(Data2));
+        calcpool.tasks[i].data->returned = false;
+    }
     for(i = 0;i < calcfuncsize;i++){
         pthread_create(&calcpool.threads[i],NULL,calcworkers,&calcpool);
     }
