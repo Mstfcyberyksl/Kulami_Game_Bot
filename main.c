@@ -11,6 +11,8 @@
 #define columns 8
 #define directionsize 28
 
+// 105 695 794 811
+// generalpoolla alakalı calculate functionlar bitiyo
 pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -82,12 +84,6 @@ typedef struct {
 
 
 
-// boşken çalışmasını engelleme ,bekleme,  BUNA EKSTRA HİÇBİŞEY YAPMAMIZA GEREK OLMAYABİLİR SONUÇTA EXECUTE
-// ETCEK BİŞEY YOKSA NİYE CPU KULLANSIN???
-// tasks arraylerin boyutunu kontrol edecek bir sistem geliştir
-// initialize etmesi var
-// task'ı o arg kısmına ekleyip fonksiyonların return kısmını değiştirmek(sonucu taskin result kısmında saklamak)
-// sonra o tasklerin resultına erişmek
 typedef struct {
     void* (*func)(void*);
     Data2* data;
@@ -611,7 +607,7 @@ int* calculate(int color, int** board){
     parray[2].func = diagonal_points_45;
     parray[3].func = diagonal_points_135;
     parray[4].func = place_area_points;
-    parray[5].func = marble_area_points;
+    parray[5].func = marble_area_points; 
     for(i = 0;i < calcfuncsize;i++){
         parray[i].result = -1;
         parray[i].returned = false;
@@ -623,12 +619,19 @@ int* calculate(int color, int** board){
     addcalctask((void*)&parray[4]);
     addcalctask((void*)&parray[5]);
 
+
+    for (int i = 0; i < calcfuncsize; i++) {
+        printf("[%d] func = %p, returned = %d\n", i, parray[i].func, parray[i].returned);
+    }
+
+    
+
     // 5'te takılıyo
     for(i = 0;i < calcfuncsize;i++){
         while(!parray[i].returned){
             printf("SLEEP %d\n",i);
             printf("tail =%d head= %d taskcount = %d\n",calcpool.tail,calcpool.head,calcpool.taskcount);
-            
+            sleep(1);
         }
     }
     int* sum = (int*)malloc(1 * sizeof(int));
@@ -636,7 +639,7 @@ int* calculate(int color, int** board){
         *sum += parray[i].result;
     }
     printf("FREEEEEE PARTTTTTTTTTTTTTTTT\n");
-    for(i = 0;i < calcfuncsize;i++){
+    /*for(i = 0;i < calcfuncsize;i++){
         free(result[i]);
     }
     free(result);
@@ -645,7 +648,7 @@ int* calculate(int color, int** board){
     for(i = 0;i < calcfuncsize;i++){
         freedata2(parray[i]);
     }
-    free(parray);
+    free(parray);*/
     return sum;
 }
 
@@ -773,7 +776,7 @@ void* search(void *arg){
             pthread_mutex_lock(&generalpool.mutex);
             if (generalpool.taskcount >= THREADSIZE-calcfuncsize){
                 pthread_mutex_unlock(&generalpool.mutex);
-                search((void*)datas[k]);
+                array[length-1][0] = *(int*)search((void*)datas[k]);
             }
             else{
                 pthread_mutex_unlock(&generalpool.mutex);
@@ -797,7 +800,10 @@ void* search(void *arg){
     // gdb'de olmadı valgrindde oldu??!!
     for(k = 0;k < usedindex;k++){
         while(!datas[used[k]]->returned){
-            printf("SLEEP aaaaaaaaaaaaaaaaa %d\n",used[k]);
+            printf("SLEEP aaaaaaaaaaaaaaaaa %d k = %d\n",used[k],k);
+            printf("calcpool = %d\n",calcpool.taskcount);
+            printf("generalpool = %d\n",generalpool.taskcount);
+            sleep(1);
         }
         printf("USED K %d\n",used[k]);
         printf("RESULT %d\n",datas[used[k]]->result);
@@ -805,9 +811,12 @@ void* search(void *arg){
         array[k][0] = datas[used[k]]->result;
     }
     if (ret){
+        printf("calcpool = %d\n",calcpool.taskcount);
+            printf("generalpool = %d\n",generalpool.taskcount);
         printf("FINALLY\n");
     }
     for(i = 0;i < length;i++){
+        // burda uninitialized value verdi ._.
         if (array[i][0] > maximum){
             maximum = array[i][0];
             result[0] = array[i][1];
