@@ -797,7 +797,7 @@ void* search(void *arg){
     // gdb'de olmadı valgrindde oldu??!!
     for(k = 0;k < usedindex;k++){
         while(!datas[used[k]]->returned){
-            printf("SLEEP aaaaaaaaaaaaaaaaa\n");
+            printf("SLEEP aaaaaaaaaaaaaaaaa %d\n",used[k]);
         }
         printf("USED K %d\n",used[k]);
         printf("RESULT %d\n",datas[used[k]]->result);
