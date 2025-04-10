@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #define THREADSIZE 18
-#define calcfuncsize 6
+#define calcfuncsize 5 // bura
 #define rows 8
 #define columns 8
 #define directionsize 28
@@ -107,8 +107,9 @@ Taskcalc calcpop(){
     
     // bu conditionları baya özelleştir bundan dolayı taskcount < 0 oluyodur
     // ama sadece eklendiğinde çağırılıyo ._.
-    while (calcpool.taskcount <= 0 ){
+    while (calcpool.taskcount <= 0 ){ // bu kısım
         pthread_cond_wait(&calcpool.cond, &calcpool.mutex);
+        printf("CALPOP calcpool.taskcount = %d\n",calcpool.taskcount);
     }
     task = calcpool.tasks[calcpool.head];
     calcpool.taskcount--; 
@@ -131,6 +132,9 @@ void* calcworkers(void* arg){
 
 void addcalctask(void* arg){
     pthread_mutex_lock(&calcpool.mutex);
+    printf("ADD CALC TASK\n");
+    printf("calcpool.taskcount = %d\n",calcpool.taskcount);
+    
     calcpool.tasks[calcpool.tail].func = ((Data2*)arg)->func;
     calcpool.tasks[calcpool.tail].data = (Data2*)arg;
     calcpool.tail++;
@@ -138,9 +142,12 @@ void addcalctask(void* arg){
     if (calcpool.tail == calcfuncsize){
         calcpool.tail = 0;
     }
-    
+    printf("HA\n");
+    printf("calcpool.taskcount = %d\n",calcpool.taskcount);
     pthread_cond_signal(&calcpool.cond);
     pthread_mutex_unlock(&calcpool.mutex);
+    
+    
     
 
 }
@@ -165,7 +172,6 @@ Taskgeneral generalpop(){
     Taskgeneral task;
     pthread_mutex_lock(&generalpool.mutex);
     
-    // BU CONDİTİONLARRRRRR
     while (generalpool.taskcount <= 0){
         pthread_cond_wait(&generalpool.cond, &generalpool.mutex);
     }
@@ -185,10 +191,9 @@ void* generalworkers(void* arg){
         Taskgeneral task = generalpop();
         printf("TASK FUNC = %p\n",task.func);
         printf("TASK DATA = %p\n",task.data);
-        if (task.func == NULL) { // bu ve 187'de bişeylik var
+        if (task.func == NULL) { 
             printf("ERROR: task.func is NULL!\n");
         }
-        
         void* rete = task.func(task.data);
         if (rete == NULL) {
             printf("ERROR: task.func(task.arg) returned NULL!\n");
@@ -220,6 +225,7 @@ void* horizontal_points(void *arg){
 
     int* result = (int*)malloc(sizeof(int));
     if (result == NULL) {
+        printf("HEREEEEEEEEEEEEEEEEEEE HORIZONTAL\n");
         perror("Failed to allocate memory horizontal");
         pthread_exit(NULL);
     }
@@ -289,6 +295,7 @@ void* vertical_points(void *arg){
 
     int* result = (int*)malloc(sizeof(int));
     if (result == NULL) {
+        printf("HEREEEEEEEEEEEEEEEEEEE VERTICAL\n");
         perror("Failed to allocate memory vertical");
         pthread_exit(NULL);
     }
@@ -348,6 +355,7 @@ void* diagonal_points_45(void *arg){
 
     int* result = (int*)malloc(sizeof(int));
     if (result == NULL) {
+        printf("HEREEEEEEEEEEEEEEEEEEE 45\n");
         perror("Failed to allocate memory 45");
         pthread_exit(NULL);
     }
@@ -411,6 +419,7 @@ void* diagonal_points_135(void *arg){
 
     int* result = (int*)malloc(sizeof(int));
     if (result == NULL) {
+        printf("HEREEEEEEEEEEEEEEEEEEE 135\n");
         perror("Failed to allocate memory 135");
         pthread_exit(NULL);
     }
@@ -485,6 +494,7 @@ void* marble_area_points(void *arg){
 
     int* result = (int*)malloc(sizeof(int));
     if (result == NULL) {
+        printf("HEREEEEEEEEEEEEEEEEEEE MARBLE\n");
         perror("Failed to allocate memory marble area");
         pthread_exit(NULL);
     }
@@ -530,6 +540,7 @@ void* place_area_points(void *arg){
     int color = data->color;
 
     if (result == NULL) {
+        printf("HEREEEEEEEEEEEEEEEEEEE PLACE\n");
         perror("Failed to allocate memory place area");
         pthread_exit(NULL);
     }
@@ -584,7 +595,6 @@ int* calculate(int color, int** board){
     /*calcpool.tail = 0;
     calcpool.head = 0;
     calcpool.taskcount = 0;*/
-    printf("HEYAAAA tail =%d head= %d taskcount = %d\n",calcpool.tail,calcpool.head,calcpool.taskcount);
     pthread_t* calcthreads = (pthread_t*)malloc(calcfuncsize * sizeof(pthread_t));
     int i;
     int** result = (int**)malloc(calcfuncsize * sizeof(int*));
@@ -599,44 +609,61 @@ int* calculate(int color, int** board){
         data->board[i] = (int*)malloc(8 * sizeof(int));
         memcpy(data->board[i],board[i],8 * sizeof(int));
     }
-    
+    printf("MILESTONE 1\n");
     int ab; 
     Data2* parray = (Data2*)malloc(calcfuncsize * sizeof(Data2));
     for(i = 0;i < calcfuncsize;i++){
         parray[i] = copydata2(data);
     }
-    parray[0].func = horizontal_points;
-    parray[1].func = vertical_points;
-    parray[2].func = diagonal_points_45;
-    parray[3].func = diagonal_points_135;
-    parray[4].func = place_area_points;
-    parray[5].func = marble_area_points; 
+    //parray[0].func = horizontal_points;
+    printf("MILESTONE 2\n");
+
+    parray[0].func = vertical_points;
+    parray[1].func = diagonal_points_45;
+    parray[2].func = diagonal_points_135;
+    parray[3].func = place_area_points;
+    parray[4].func = marble_area_points; 
     for(i = 0;i < calcfuncsize;i++){
         parray[i].result = -1;
         parray[i].returned = false;
     }
+    printf("MILESTONE 3\n");
+
     addcalctask((void*)&parray[0]);
+    printf("MILESTONE 3.5\n");
     addcalctask((void*)&parray[1]);
+    printf("MILESTONE 3.6\n");
     addcalctask((void*)&parray[2]);
+    printf("MILESTONE 3.7\n");
+
     addcalctask((void*)&parray[3]);
+    printf("MILESTONE 3.8\n");
+
     addcalctask((void*)&parray[4]);
-    addcalctask((void*)&parray[5]);
+    //addcalctask((void*)&parray[5]);
+    printf("MILESTONE 4\n");
 
 
-    for (int i = 0; i < calcfuncsize; i++) {
+    for (i = 0; i < calcfuncsize; i++) {
         printf("[%d] func = %p, returned = %d\n", i, parray[i].func, parray[i].returned);
     }
 
     
+    printf("MILESTONE 6\n");
 
     // 5'te takılıyo
     for(i = 0;i < calcfuncsize;i++){
+        printf("WAITING FOR %d\n",i);
         while(!parray[i].returned){
+            pthread_mutex_lock(&calcpool.mutex);
             printf("SLEEP %d\n",i);
             printf("tail =%d head= %d taskcount = %d\n",calcpool.tail,calcpool.head,calcpool.taskcount);
+            pthread_mutex_unlock(&calcpool.mutex);
             sleep(1);
         }
     }
+    printf("MILESTONE 7\n");
+
     int* sum = (int*)malloc(1 * sizeof(int));
     for(i = 0;i < calcfuncsize;i++){
         *sum += parray[i].result;
@@ -685,7 +712,7 @@ void* search(void *arg){
     int x = data->x;
     int y = data->y;
     int step = data->step;
-    printf("step = %d",step);
+    printf("step = %d\n",step);
     int not_x = data->not_x;
     int not_y = data->not_y;
     int color = data->color;
@@ -718,7 +745,10 @@ void* search(void *arg){
     board[x][y] = color;
     if (step == 0){
         pthread_mutex_lock(&mutexcalcrunning);
+        printf("STARTTTTTTTTTTTTTTTTTTTTTTTTT\n");
         *invalid = *calculate(2,board);
+        printf("FINISHHHHHHHHHHHHHHHHHHHHHHH\n");
+
         pthread_mutex_unlock(&mutexcalcrunning);
         free(result);
         data->path[0] = *invalid;
@@ -802,7 +832,7 @@ void* search(void *arg){
     // idk why exactly
     // gdb'de olmadı valgrindde oldu??!!
     for(k = 0;k < usedindex;k++){
-        while(!datas[used[k]]->returned){
+        while(!datas[used[k]]->returned){// bu kısım
             printf("SLEEP aaaaaaaaaaaaaaaaa %d k = %d\n",used[k],k);
             printf("calcpool = %d\n",calcpool.taskcount);
             printf("generalpool = %d\n",generalpool.taskcount);
@@ -814,8 +844,7 @@ void* search(void *arg){
         array[k][0] = datas[used[k]]->result;
     }
     if (ret){
-        printf("calcpool = %d\n",calcpool.taskcount);
-            printf("generalpool = %d\n",generalpool.taskcount);
+        
         printf("FINALLY\n");
     }
     for(i = 0;i < length;i++){
@@ -916,6 +945,7 @@ int* best_place(int x, int y,int step, int lx, int ly){
     data.path[2] = y;
     
     temp = (int*)search((void*)&data);
+    printf("KEEPS GOING\n");
     board2[temp[0]][temp[1]] = 2;
 
     j = newnode[temp[0]][temp[1]]->frame;
@@ -928,7 +958,20 @@ int* best_place(int x, int y,int step, int lx, int ly){
         printf("USER FRAME = %d\n",userframe);
         printf("j = %d\n",j);
     }
+    printf("MILESTONE\n");
     fclose(file);
+    int count = 0;
+    printf("MILESTONE2\n");
+    for(i = 0;i < calcfuncsize;i++){
+        printf("COUNT = %d",count++);
+        pthread_cancel(calcpool.threads[i]);
+        pthread_join(calcpool.threads[i],NULL);
+    }
+    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
+        printf("COUNT = %d",count++);
+        pthread_cancel(generalpool.threads[i]);
+        pthread_join(generalpool.threads[i],NULL);
+    }
     return temp;
 }
 
