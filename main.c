@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #define THREADSIZE 18
-#define calcfuncsize 5 // bura
+#define calcfuncsize 6 
 #define rows 8
 #define columns 8
 #define directionsize 28
@@ -87,6 +87,7 @@ typedef struct {
 typedef struct {
     void* (*func)(void*);
     Data2* data;
+    bool exit;
 } Taskcalc;
 
 typedef struct {
@@ -95,6 +96,7 @@ typedef struct {
     int tail;
     int head;
     int taskcount;
+    bool exit;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
 } Taskcalcpool;
@@ -109,6 +111,11 @@ Taskcalc calcpop(){
     // ama sadece eklendiğinde çağırılıyo ._.
     while (calcpool.taskcount <= 0 ){ // bu kısım
         pthread_cond_wait(&calcpool.cond, &calcpool.mutex);
+        if (calcpool.exit){
+            //pthread_mutex_unlock(&calcpool.mutex);
+            task.exit = true;
+            return task;
+        }
         printf("CALPOP calcpool.taskcount = %d\n",calcpool.taskcount);
     }
     task = calcpool.tasks[calcpool.head];
@@ -124,6 +131,9 @@ Taskcalc calcpop(){
 void* calcworkers(void* arg){
     while(1){
         Taskcalc task = calcpop();
+        if (task.exit){
+            return NULL;
+        }
         task.data->result = *(int*)task.func((void*)task.data);
         task.data->returned = true;
         
@@ -155,6 +165,7 @@ void addcalctask(void* arg){
 typedef struct {
     void* (*func)(void*);
     Data* data;
+    bool exit;
 } Taskgeneral;
 
 typedef struct {
@@ -163,6 +174,7 @@ typedef struct {
     int tail;
     int head;
     int taskcount;
+    bool exit;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
 } Taskgeneralpool;
@@ -174,6 +186,11 @@ Taskgeneral generalpop(){
     
     while (generalpool.taskcount <= 0){
         pthread_cond_wait(&generalpool.cond, &generalpool.mutex);
+        if (generalpool.exit){
+            //pthread_mutex_unlock(&generalpool.mutex);
+            task.exit = true;
+            return task;
+        }
     }
     task = generalpool.tasks[generalpool.head];
     
@@ -189,6 +206,9 @@ Taskgeneral generalpop(){
 void* generalworkers(void* arg){
     while(1){
         Taskgeneral task = generalpop();
+        if (task.exit){
+            return NULL;
+        }
         printf("TASK FUNC = %p\n",task.func);
         printf("TASK DATA = %p\n",task.data);
         if (task.func == NULL) { 
@@ -592,9 +612,7 @@ void freedata2(Data2 data){
 
 int* calculate(int color, int** board){
     printf("CALCULATE FUNCTION\n");
-    /*calcpool.tail = 0;
-    calcpool.head = 0;
-    calcpool.taskcount = 0;*/
+    
     pthread_t* calcthreads = (pthread_t*)malloc(calcfuncsize * sizeof(pthread_t));
     int i;
     int** result = (int**)malloc(calcfuncsize * sizeof(int*));
@@ -615,14 +633,14 @@ int* calculate(int color, int** board){
     for(i = 0;i < calcfuncsize;i++){
         parray[i] = copydata2(data);
     }
-    //parray[0].func = horizontal_points;
+    parray[0].func = horizontal_points;
     printf("MILESTONE 2\n");
 
-    parray[0].func = vertical_points;
-    parray[1].func = diagonal_points_45;
-    parray[2].func = diagonal_points_135;
-    parray[3].func = place_area_points;
-    parray[4].func = marble_area_points; 
+    parray[1].func = vertical_points;
+    parray[2].func = diagonal_points_45;
+    parray[3].func = diagonal_points_135;
+    parray[4].func = place_area_points;
+    parray[5].func = marble_area_points; 
     for(i = 0;i < calcfuncsize;i++){
         parray[i].result = -1;
         parray[i].returned = false;
@@ -640,7 +658,7 @@ int* calculate(int color, int** board){
     printf("MILESTONE 3.8\n");
 
     addcalctask((void*)&parray[4]);
-    //addcalctask((void*)&parray[5]);
+    addcalctask((void*)&parray[5]);
     printf("MILESTONE 4\n");
 
 
@@ -832,6 +850,9 @@ void* search(void *arg){
     // idk why exactly
     // gdb'de olmadı valgrindde oldu??!!
     for(k = 0;k < usedindex;k++){
+        //  HER Bİ DATAYA (CALCPOOL VE GENERALPOOL İÇİN) COND VARİABLE KOY
+        //working threadlerin pop fonksiyonunu beklemesinde kullanılan logici
+        // kullan
         while(!datas[used[k]]->returned){// bu kısım
             printf("SLEEP aaaaaaaaaaaaaaaaa %d k = %d\n",used[k],k);
             printf("calcpool = %d\n",calcpool.taskcount);
@@ -964,13 +985,14 @@ int* best_place(int x, int y,int step, int lx, int ly){
     printf("MILESTONE2\n");
     for(i = 0;i < calcfuncsize;i++){
         printf("COUNT = %d",count++);
-        pthread_cancel(calcpool.threads[i]);
-        pthread_join(calcpool.threads[i],NULL);
+        calcpool.exit = true;
+        pthread_cond_broadcast(&calcpool.cond);
+        
     }
     for(i = 0;i < THREADSIZE-calcfuncsize;i++){
         printf("COUNT = %d",count++);
-        pthread_cancel(generalpool.threads[i]);
-        pthread_join(generalpool.threads[i],NULL);
+        generalpool.exit = true;
+        pthread_cond_broadcast(&generalpool.cond);
     }
     return temp;
 }
