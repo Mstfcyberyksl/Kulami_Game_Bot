@@ -61,6 +61,7 @@ typedef struct {
     void* (*func)(void*);
     int result;
     bool returned;
+    pthread_cond_t cond;
 }Data2;
 
 typedef struct Node {
@@ -79,10 +80,14 @@ typedef struct {
     int* path;
     int result;
     bool returned;
-    
+    pthread_cond_t cond;
 }Data;
 
-
+// 0. index nedense executelenmiyo
+// x tane head = %d iken döndü kısmı varsa x-1 tane returned gösteriyo
+// üstte 2 tane CALCPOP'la başlayan statement olmasına rağmen 5 tane head = %d statementi var
+// olay 99.99999% bu kısımla alakalı hele 3. yorum satırındaki olay kesin bişeyler diyo
+// 1 tane bile calculate bitmiyo bu iyiye işaret
 
 typedef struct {
     void* (*func)(void*);
@@ -107,16 +112,18 @@ Taskcalc calcpop(){
     Taskcalc task;
     pthread_mutex_lock(&calcpool.mutex);
     
-    // bu conditionları baya özelleştir bundan dolayı taskcount < 0 oluyodur
-    // ama sadece eklendiğinde çağırılıyo ._.
-    while (calcpool.taskcount <= 0 ){ // bu kısım
+    while (calcpool.taskcount == 0 ){ // bu kısım
         pthread_cond_wait(&calcpool.cond, &calcpool.mutex);
         if (calcpool.exit){
-            //pthread_mutex_unlock(&calcpool.mutex);
+            pthread_mutex_unlock(&calcpool.mutex);
             task.exit = true;
             return task;
         }
         printf("CALPOP calcpool.taskcount = %d\n",calcpool.taskcount);
+        printf("head = %d\n",calcpool.head);
+    }
+    if (calcpool.taskcount < 0){
+        printf("ERROR: calcpool.taskcount < 0\n");
     }
     task = calcpool.tasks[calcpool.head];
     calcpool.taskcount--; 
@@ -125,18 +132,25 @@ Taskcalc calcpop(){
         calcpool.head = 0;
     }
     pthread_mutex_unlock(&calcpool.mutex);
+
     return task;
 }
+
+
 
 void* calcworkers(void* arg){
     while(1){
         Taskcalc task = calcpop();
+        //printf("head = %d iken döndü\n",calcpool.head);
+        //  PRINT İÇİN MUTEX KISMI BURAYA ALINDI İŞ BİTTİĞİNDE 
+        // FONKSİYONUN İÇİNE SONA GERİ KOY
         if (task.exit){
             return NULL;
         }
         task.data->result = *(int*)task.func((void*)task.data);
         task.data->returned = true;
-        
+        pthread_cond_signal(&task.data->cond);
+        printf("SIGNAL\n");
     }
 }
 
@@ -221,6 +235,7 @@ void* generalworkers(void* arg){
             task.data->result = *(int*)rete;
         }
         task.data->returned = true;
+        pthread_cond_signal(&task.data->cond);
     }
 }
 
@@ -627,14 +642,12 @@ int* calculate(int color, int** board){
         data->board[i] = (int*)malloc(8 * sizeof(int));
         memcpy(data->board[i],board[i],8 * sizeof(int));
     }
-    printf("MILESTONE 1\n");
     int ab; 
     Data2* parray = (Data2*)malloc(calcfuncsize * sizeof(Data2));
     for(i = 0;i < calcfuncsize;i++){
         parray[i] = copydata2(data);
     }
     parray[0].func = horizontal_points;
-    printf("MILESTONE 2\n");
 
     parray[1].func = vertical_points;
     parray[2].func = diagonal_points_45;
@@ -644,41 +657,31 @@ int* calculate(int color, int** board){
     for(i = 0;i < calcfuncsize;i++){
         parray[i].result = -1;
         parray[i].returned = false;
+        pthread_cond_init(&parray[i].cond,NULL);
     }
-    printf("MILESTONE 3\n");
-
     addcalctask((void*)&parray[0]);
-    printf("MILESTONE 3.5\n");
     addcalctask((void*)&parray[1]);
-    printf("MILESTONE 3.6\n");
     addcalctask((void*)&parray[2]);
-    printf("MILESTONE 3.7\n");
-
     addcalctask((void*)&parray[3]);
-    printf("MILESTONE 3.8\n");
-
     addcalctask((void*)&parray[4]);
     addcalctask((void*)&parray[5]);
-    printf("MILESTONE 4\n");
 
-
+    pthread_mutex_lock(&calcpool.mutex);
     for (i = 0; i < calcfuncsize; i++) {
         printf("[%d] func = %p, returned = %d\n", i, parray[i].func, parray[i].returned);
     }
-
+    pthread_mutex_unlock(&calcpool.mutex);
     
-    printf("MILESTONE 6\n");
+//    HER Bİ DATA İÇİN ÖZEL MUTEX KOY VE ONU BEKLE
+// MANTIKLIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII GİBİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİ
 
-    // 5'te takılıyo
     for(i = 0;i < calcfuncsize;i++){
         printf("WAITING FOR %d\n",i);
+        pthread_mutex_lock(&calcpool.mutex);
         while(!parray[i].returned){
-            pthread_mutex_lock(&calcpool.mutex);
-            printf("SLEEP %d\n",i);
-            printf("tail =%d head= %d taskcount = %d\n",calcpool.tail,calcpool.head,calcpool.taskcount);
-            pthread_mutex_unlock(&calcpool.mutex);
-            sleep(1);
+            pthread_cond_wait(&parray[i].cond,&calcpool.mutex);
         }
+        pthread_mutex_unlock(&calcpool.mutex);
     }
     printf("MILESTONE 7\n");
 
@@ -824,6 +827,7 @@ void* search(void *arg){
             memcpy(datas[k]->path, result2, 33 * sizeof(int));
             datas[k]->returned = false;
             datas[k]->result = -1;
+            pthread_cond_init(&datas[k]->cond,NULL);
             pthread_mutex_lock(&generalpool.mutex);
             if (generalpool.taskcount >= THREADSIZE-calcfuncsize){
                 pthread_mutex_unlock(&generalpool.mutex);
@@ -853,14 +857,13 @@ void* search(void *arg){
         //  HER Bİ DATAYA (CALCPOOL VE GENERALPOOL İÇİN) COND VARİABLE KOY
         //working threadlerin pop fonksiyonunu beklemesinde kullanılan logici
         // kullan
-        while(!datas[used[k]]->returned){// bu kısım
-            printf("SLEEP aaaaaaaaaaaaaaaaa %d k = %d\n",used[k],k);
-            printf("calcpool = %d\n",calcpool.taskcount);
-            printf("generalpool = %d\n",generalpool.taskcount);
-            sleep(1);
+        pthread_mutex_lock(&generalpool.mutex);
+        while(!datas[used[k]]->returned){
+            
+            pthread_cond_wait(&datas[used[k]]->cond,&generalpool.mutex);
         }
-        printf("USED K %d\n",used[k]);
-        printf("RESULT %d\n",datas[used[k]]->result);
+        pthread_mutex_unlock(&generalpool.mutex);
+        
         
         array[k][0] = datas[used[k]]->result;
     }
@@ -979,10 +982,10 @@ int* best_place(int x, int y,int step, int lx, int ly){
         printf("USER FRAME = %d\n",userframe);
         printf("j = %d\n",j);
     }
-    printf("MILESTONE\n");
+    printf("BEST PlACE MILESTONE\n");
     fclose(file);
     int count = 0;
-    printf("MILESTONE2\n");
+    printf("BEST PLACE MILESTONE2\n");
     for(i = 0;i < calcfuncsize;i++){
         printf("COUNT = %d",count++);
         calcpool.exit = true;
