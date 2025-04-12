@@ -62,6 +62,7 @@ typedef struct {
     int result;
     bool returned;
     pthread_cond_t cond;
+    pthread_mutex_t mutex;
 }Data2;
 
 typedef struct Node {
@@ -81,6 +82,7 @@ typedef struct {
     int result;
     bool returned;
     pthread_cond_t cond;
+    pthread_mutex_t mutex;
 }Data;
 
 // 0. index nedense executelenmiyo
@@ -112,16 +114,17 @@ Taskcalc calcpop(){
     Taskcalc task;
     pthread_mutex_lock(&calcpool.mutex);
     
-    while (calcpool.taskcount == 0 ){ // bu kısım
+    while (calcpool.taskcount == 0 && !calcpool.exit ){ // bu kısım
         pthread_cond_wait(&calcpool.cond, &calcpool.mutex);
-        if (calcpool.exit){
-            pthread_mutex_unlock(&calcpool.mutex);
-            task.exit = true;
-            return task;
-        }
-        printf("CALPOP calcpool.taskcount = %d\n",calcpool.taskcount);
-        printf("head = %d\n",calcpool.head);
     }
+    if (calcpool.exit){
+        task.exit = true;
+        printf("EXIT CALCPOP\n");
+        pthread_mutex_unlock(&calcpool.mutex);
+        return task;
+    }
+    printf("CALPOP calcpool.taskcount = %d\n",calcpool.taskcount);
+    printf("head = %d\n",calcpool.head);
     if (calcpool.taskcount < 0){
         printf("ERROR: calcpool.taskcount < 0\n");
     }
@@ -131,6 +134,7 @@ Taskcalc calcpop(){
     if (calcpool.head >= calcfuncsize){
         calcpool.head = 0;
     }
+    printf("RETURN CALCPOP\n");
     pthread_mutex_unlock(&calcpool.mutex);
 
     return task;
@@ -141,9 +145,6 @@ Taskcalc calcpop(){
 void* calcworkers(void* arg){
     while(1){
         Taskcalc task = calcpop();
-        //printf("head = %d iken döndü\n",calcpool.head);
-        //  PRINT İÇİN MUTEX KISMI BURAYA ALINDI İŞ BİTTİĞİNDE 
-        // FONKSİYONUN İÇİNE SONA GERİ KOY
         if (task.exit){
             return NULL;
         }
@@ -161,6 +162,7 @@ void addcalctask(void* arg){
     
     calcpool.tasks[calcpool.tail].func = ((Data2*)arg)->func;
     calcpool.tasks[calcpool.tail].data = (Data2*)arg;
+    calcpool.tasks[calcpool.tail].exit = false;
     calcpool.tail++;
     calcpool.taskcount++;
     if (calcpool.tail == calcfuncsize){
@@ -198,13 +200,15 @@ Taskgeneral generalpop(){
     Taskgeneral task;
     pthread_mutex_lock(&generalpool.mutex);
     
-    while (generalpool.taskcount <= 0){
+    while (generalpool.taskcount <= 0 && !generalpool.exit){
         pthread_cond_wait(&generalpool.cond, &generalpool.mutex);
-        if (generalpool.exit){
-            //pthread_mutex_unlock(&generalpool.mutex);
-            task.exit = true;
-            return task;
-        }
+        
+    }
+    if (generalpool.exit){
+        printf("EXIT GENERALPOP\n");
+        task.exit = true;
+        pthread_mutex_unlock(&generalpool.mutex);
+        return task;
     }
     task = generalpool.tasks[generalpool.head];
     
@@ -223,8 +227,6 @@ void* generalworkers(void* arg){
         if (task.exit){
             return NULL;
         }
-        printf("TASK FUNC = %p\n",task.func);
-        printf("TASK DATA = %p\n",task.data);
         if (task.func == NULL) { 
             printf("ERROR: task.func is NULL!\n");
         }
@@ -243,6 +245,7 @@ void addgeneraltask(void* arg){
     pthread_mutex_lock(&generalpool.mutex);
     generalpool.tasks[generalpool.tail].func = search;
     generalpool.tasks[generalpool.tail].data = (Data*)arg;
+    generalpool.tasks[generalpool.tail].exit = false;
     generalpool.tail++;
     generalpool.taskcount++;
     if (generalpool.tail >= THREADSIZE-calcfuncsize){
@@ -658,6 +661,7 @@ int* calculate(int color, int** board){
         parray[i].result = -1;
         parray[i].returned = false;
         pthread_cond_init(&parray[i].cond,NULL);
+        pthread_mutex_init(&parray[i].mutex,NULL);
     }
     addcalctask((void*)&parray[0]);
     addcalctask((void*)&parray[1]);
@@ -677,11 +681,11 @@ int* calculate(int color, int** board){
 
     for(i = 0;i < calcfuncsize;i++){
         printf("WAITING FOR %d\n",i);
-        pthread_mutex_lock(&calcpool.mutex);
+        pthread_mutex_lock(&parray[i].mutex);
         while(!parray[i].returned){
-            pthread_cond_wait(&parray[i].cond,&calcpool.mutex);
+            pthread_cond_wait(&parray[i].cond,&parray[i].mutex);
         }
-        pthread_mutex_unlock(&calcpool.mutex);
+        pthread_mutex_unlock(&parray[i].mutex);
     }
     printf("MILESTONE 7\n");
 
@@ -828,6 +832,8 @@ void* search(void *arg){
             datas[k]->returned = false;
             datas[k]->result = -1;
             pthread_cond_init(&datas[k]->cond,NULL);
+            pthread_mutex_init(&datas[k]->mutex,NULL);
+
             pthread_mutex_lock(&generalpool.mutex);
             if (generalpool.taskcount >= THREADSIZE-calcfuncsize){
                 pthread_mutex_unlock(&generalpool.mutex);
@@ -857,12 +863,13 @@ void* search(void *arg){
         //  HER Bİ DATAYA (CALCPOOL VE GENERALPOOL İÇİN) COND VARİABLE KOY
         //working threadlerin pop fonksiyonunu beklemesinde kullanılan logici
         // kullan
-        pthread_mutex_lock(&generalpool.mutex);
+        printf("WAITING FOR %d\n",k);
+        pthread_mutex_lock(&datas[used[k]]->mutex);
         while(!datas[used[k]]->returned){
             
-            pthread_cond_wait(&datas[used[k]]->cond,&generalpool.mutex);
+            pthread_cond_wait(&datas[used[k]]->cond,&datas[used[k]]->mutex);
         }
-        pthread_mutex_unlock(&generalpool.mutex);
+        pthread_mutex_unlock(&datas[used[k]]->mutex);
         
         
         array[k][0] = datas[used[k]]->result;
@@ -986,17 +993,18 @@ int* best_place(int x, int y,int step, int lx, int ly){
     fclose(file);
     int count = 0;
     printf("BEST PLACE MILESTONE2\n");
-    for(i = 0;i < calcfuncsize;i++){
-        printf("COUNT = %d",count++);
-        calcpool.exit = true;
-        pthread_cond_broadcast(&calcpool.cond);
-        
-    }
-    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
-        printf("COUNT = %d",count++);
-        generalpool.exit = true;
-        pthread_cond_broadcast(&generalpool.cond);
-    }
+
+    pthread_mutex_lock(&calcpool.mutex);
+    calcpool.exit = true;
+    pthread_cond_broadcast(&calcpool.cond);
+    pthread_mutex_unlock(&calcpool.mutex);
+    
+
+    pthread_mutex_lock(&generalpool.mutex);
+    generalpool.exit = true;
+    pthread_cond_broadcast(&generalpool.cond);
+    pthread_mutex_unlock(&generalpool.mutex);    
+    
     return temp;
 }
 
