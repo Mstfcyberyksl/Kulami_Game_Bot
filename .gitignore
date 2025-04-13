@@ -193,3 +193,8 @@ pyrightconfig.json
 
 # vscode
 .vscode/
+
+# shell scripts
+*.sh
+*.bash
+
