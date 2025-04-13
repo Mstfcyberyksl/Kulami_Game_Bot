@@ -11,8 +11,7 @@
 #define columns 8
 #define directionsize 28
 
-// 105 695 794 811
-// sorun generalpoolla alakalı calculate functionlar bitiyo
+
 pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -89,7 +88,7 @@ typedef struct {
 // x tane head = %d iken döndü kısmı varsa x-1 tane returned gösteriyo
 // üstte 2 tane CALCPOP'la başlayan statement olmasına rağmen 5 tane head = %d statementi var
 // olay 99.99999% bu kısımla alakalı hele 3. yorum satırındaki olay kesin bişeyler diyo
-// 1 tane bile calculate bitmiyo bu iyiye işaret
+
 
 typedef struct {
     void* (*func)(void*);
@@ -140,8 +139,6 @@ Taskcalc calcpop(){
     return task;
 }
 
-
-
 void* calcworkers(void* arg){
     while(1){
         Taskcalc task = calcpop();
@@ -172,10 +169,6 @@ void addcalctask(void* arg){
     printf("calcpool.taskcount = %d\n",calcpool.taskcount);
     pthread_cond_signal(&calcpool.cond);
     pthread_mutex_unlock(&calcpool.mutex);
-    
-    
-    
-
 }
 
 typedef struct {
@@ -202,8 +195,8 @@ Taskgeneral generalpop(){
     
     while (generalpool.taskcount <= 0 && !generalpool.exit){
         pthread_cond_wait(&generalpool.cond, &generalpool.mutex);
-        
     }
+
     if (generalpool.exit){
         printf("EXIT GENERALPOP\n");
         task.exit = true;
@@ -221,6 +214,7 @@ Taskgeneral generalpop(){
     pthread_mutex_unlock(&generalpool.mutex);
     return task;
 }
+
 void* generalworkers(void* arg){
     while(1){
         Taskgeneral task = generalpop();
@@ -254,9 +248,7 @@ void addgeneraltask(void* arg){
     
     pthread_cond_signal(&generalpool.cond);
     pthread_mutex_unlock(&generalpool.mutex);
-    
 }
-
 
 void* horizontal_points(void *arg){
     int i,j,length = 0,pc = 0,user = 0;
@@ -516,8 +508,6 @@ int dfs(int i,int j,int** board,int color){
     board[i][j] = 0;
     return 1 + dfs(i+1,j,board,color) + dfs(i-1,j,board,color) + dfs(i,j+1,board,color) + dfs(i,j-1,board,color);
 }
-
-
 void* marble_area_points(void *arg){
     
     Data2* data = (Data2*)arg;
@@ -562,9 +552,7 @@ void* marble_area_points(void *arg){
     free(board);
     
     return (void*)result;   
-}
-    
-    
+}    
 void* place_area_points(void *arg){
     int i,j,pc = 0,user = 0,length = 0;
     int* result = (int*)malloc(sizeof(int));
@@ -608,9 +596,6 @@ void* place_area_points(void *arg){
     free(board);
     return (void*)result;
 }
-
-
-
 Data2 copydata2(Data2* data){
     Data2 copy = *data;
 
@@ -650,8 +635,8 @@ int* calculate(int color, int** board){
     for(i = 0;i < calcfuncsize;i++){
         parray[i] = copydata2(data);
     }
-    parray[0].func = horizontal_points;
 
+    parray[0].func = horizontal_points;
     parray[1].func = vertical_points;
     parray[2].func = diagonal_points_45;
     parray[3].func = diagonal_points_135;
@@ -675,9 +660,6 @@ int* calculate(int color, int** board){
         printf("[%d] func = %p, returned = %d\n", i, parray[i].func, parray[i].returned);
     }
     pthread_mutex_unlock(&calcpool.mutex);
-    
-//    HER Bİ DATA İÇİN ÖZEL MUTEX KOY VE ONU BEKLE
-// MANTIKLIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII GİBİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİİ
 
     for(i = 0;i < calcfuncsize;i++){
         printf("WAITING FOR %d\n",i);
@@ -694,6 +676,7 @@ int* calculate(int color, int** board){
         *sum += parray[i].result;
     }
     printf("FREEEEEE PARTTTTTTTTTTTTTTTT\n");
+    // debugging kısmında sorun çıkmasın diye free kısımları comment outlandı 
     /*for(i = 0;i < calcfuncsize;i++){
         free(result[i]);
     }
@@ -719,7 +702,6 @@ int which(int x, int y){
         }
     }
 }
-
 void append(Data *data){
     pthread_mutex_lock(&filemutex);
     
@@ -842,7 +824,6 @@ void* search(void *arg){
             else{
                 pthread_mutex_unlock(&generalpool.mutex);
                 addgeneraltask((void*)datas[k]);
-                
             }
             
             array[length-1][1] = x + directions[k][0];
@@ -855,27 +836,17 @@ void* search(void *arg){
         printf("USED INDEX = %d\n",usedindex);
     }
 
-    // ilk adım için oldu step 1 iken
-    // 2.  adımda burda takılı kaldı
-    // idk why exactly
-    // gdb'de olmadı valgrindde oldu??!!
     for(k = 0;k < usedindex;k++){
-        //  HER Bİ DATAYA (CALCPOOL VE GENERALPOOL İÇİN) COND VARİABLE KOY
-        //working threadlerin pop fonksiyonunu beklemesinde kullanılan logici
-        // kullan
         printf("WAITING FOR %d\n",k);
         pthread_mutex_lock(&datas[used[k]]->mutex);
         while(!datas[used[k]]->returned){
-            
             pthread_cond_wait(&datas[used[k]]->cond,&datas[used[k]]->mutex);
         }
         pthread_mutex_unlock(&datas[used[k]]->mutex);
         
-        
         array[k][0] = datas[used[k]]->result;
     }
     if (ret){
-        
         printf("FINALLY\n");
     }
     for(i = 0;i < length;i++){
@@ -927,9 +898,7 @@ int* best_place(int x, int y,int step, int lx, int ly){
         pthread_create(&generalpool.threads[i],NULL,generalworkers,&generalpool);
     }
     
-    
     board2[x][y] = 1;
-    
     
     genstep = step;
     i = newnode[x][y]->frame;
@@ -989,10 +958,9 @@ int* best_place(int x, int y,int step, int lx, int ly){
         printf("USER FRAME = %d\n",userframe);
         printf("j = %d\n",j);
     }
-    printf("BEST PlACE MILESTONE\n");
+    
     fclose(file);
     int count = 0;
-    printf("BEST PLACE MILESTONE2\n");
 
     pthread_mutex_lock(&calcpool.mutex);
     calcpool.exit = true;
