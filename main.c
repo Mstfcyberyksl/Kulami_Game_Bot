@@ -143,6 +143,7 @@ void* calcworkers(void* arg){
     while(1){
         Taskcalc task = calcpop();
         if (task.exit){
+            printf("WHY DO YOU EXIT CALCPOP????\n");
             return NULL;
         }
         task.data->result = *(int*)task.func((void*)task.data);
@@ -878,6 +879,10 @@ int* best_place(int x, int y,int step, int lx, int ly){
     calcpool.head = 0;
     calcpool.taskcount = 0;
     calcpool.tasks = (Taskcalc*)malloc(calcfuncsize * sizeof(Taskcalc));
+
+    // neden calcpoolun tasklerinin datalarına yer vermişim de generalpoolun vermemişim
+    // ve sorun bundan kaynaklı olabilir mi?
+
     pthread_mutex_init(&calcpool.mutex,NULL);
     pthread_cond_init(&calcpool.cond,NULL);
     for(i = 0;i < calcfuncsize;i++){
@@ -960,19 +965,36 @@ int* best_place(int x, int y,int step, int lx, int ly){
     }
     
     fclose(file);
-    int count = 0;
-
+    
+    for(i = 0;i < calcfuncsize;i++){
+        calcpool.tasks[i].exit = false;
+    }
+    
     pthread_mutex_lock(&calcpool.mutex);
     calcpool.exit = true;
     pthread_cond_broadcast(&calcpool.cond);
     pthread_mutex_unlock(&calcpool.mutex);
+    for(i = 0;i < calcfuncsize;i++){
+        pthread_join(calcpool.threads[i],NULL);
+        //free(calcpool.tasks[i].data);
+    }
+    printf("CALS ARE JOINED\n");
     
-
+    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
+        generalpool.tasks[i].exit = false;
+    }
     pthread_mutex_lock(&generalpool.mutex);
     generalpool.exit = true;
     pthread_cond_broadcast(&generalpool.cond);
-    pthread_mutex_unlock(&generalpool.mutex);    
-    
+    pthread_mutex_unlock(&generalpool.mutex);
+
+    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
+        pthread_join(generalpool.threads[i],NULL);
+        //free(generalpool.tasks[i].data);
+    }  
+    printf("GENERAL ARE JOINED\n");
+    pthread_mutex_destroy(&calcpool.mutex);
+    pthread_mutex_destroy(&generalpool.mutex);
     return temp;
 }
 
