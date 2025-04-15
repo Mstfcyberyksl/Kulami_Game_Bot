@@ -11,7 +11,9 @@
 #define columns 8
 #define directionsize 28
 
-
+//debug.txt'ye bakarsak calculate function'unun öncesindeki printf kısmından 889 sonraki kısmınndan 890 tane var
+// benzer şekilde tek threadin search'i recursive olarak çağırma kısmında öncesindeki kısmında sonrakindeki kısmına göre 
+// 2 tane daha fazla var
 pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -113,7 +115,7 @@ Taskcalc calcpop(){
     Taskcalc task;
     pthread_mutex_lock(&calcpool.mutex);
     
-    while (calcpool.taskcount == 0 && !calcpool.exit ){ // bu kısım
+    while (calcpool.taskcount == 0 && !calcpool.exit ){
         pthread_cond_wait(&calcpool.cond, &calcpool.mutex);
     }
     if (calcpool.exit){
@@ -122,8 +124,6 @@ Taskcalc calcpop(){
         pthread_mutex_unlock(&calcpool.mutex);
         return task;
     }
-    printf("CALPOP calcpool.taskcount = %d\n",calcpool.taskcount);
-    printf("head = %d\n",calcpool.head);
     if (calcpool.taskcount < 0){
         printf("ERROR: calcpool.taskcount < 0\n");
     }
@@ -133,7 +133,6 @@ Taskcalc calcpop(){
     if (calcpool.head >= calcfuncsize){
         calcpool.head = 0;
     }
-    printf("RETURN CALCPOP\n");
     pthread_mutex_unlock(&calcpool.mutex);
 
     return task;
@@ -143,20 +142,19 @@ void* calcworkers(void* arg){
     while(1){
         Taskcalc task = calcpop();
         if (task.exit){
-            printf("WHY DO YOU EXIT CALCPOP????\n");
             return NULL;
         }
         task.data->result = *(int*)task.func((void*)task.data);
+        pthread_mutex_lock(&task.data->mutex);
         task.data->returned = true;
         pthread_cond_signal(&task.data->cond);
-        printf("SIGNAL\n");
+        pthread_mutex_unlock(&task.data->mutex);
+
     }
 }
 
 void addcalctask(void* arg){
     pthread_mutex_lock(&calcpool.mutex);
-    printf("ADD CALC TASK\n");
-    printf("calcpool.taskcount = %d\n",calcpool.taskcount);
     
     calcpool.tasks[calcpool.tail].func = ((Data2*)arg)->func;
     calcpool.tasks[calcpool.tail].data = (Data2*)arg;
@@ -166,8 +164,6 @@ void addcalctask(void* arg){
     if (calcpool.tail == calcfuncsize){
         calcpool.tail = 0;
     }
-    printf("HA\n");
-    printf("calcpool.taskcount = %d\n",calcpool.taskcount);
     pthread_cond_signal(&calcpool.cond);
     pthread_mutex_unlock(&calcpool.mutex);
 }
@@ -194,7 +190,7 @@ Taskgeneral generalpop(){
     Taskgeneral task;
     pthread_mutex_lock(&generalpool.mutex);
     
-    while (generalpool.taskcount <= 0 && !generalpool.exit){
+    while (generalpool.taskcount == 0 && !generalpool.exit){
         pthread_cond_wait(&generalpool.cond, &generalpool.mutex);
     }
 
@@ -203,6 +199,9 @@ Taskgeneral generalpop(){
         task.exit = true;
         pthread_mutex_unlock(&generalpool.mutex);
         return task;
+    }
+    if (generalpool.taskcount < 0){
+        printf("ERROR: generalpool.taskcount < 0\n");
     }
     task = generalpool.tasks[generalpool.head];
     
@@ -222,17 +221,13 @@ void* generalworkers(void* arg){
         if (task.exit){
             return NULL;
         }
-        if (task.func == NULL) { 
-            printf("ERROR: task.func is NULL!\n");
-        }
-        void* rete = task.func(task.data);
-        if (rete == NULL) {
-            printf("ERROR: task.func(task.arg) returned NULL!\n");
-        }else {
-            task.data->result = *(int*)rete;
-        }
+                
+        task.data->result = *(int*)task.func(task.data);
+        
+        pthread_mutex_lock(&task.data->mutex);
         task.data->returned = true;
         pthread_cond_signal(&task.data->cond);
+        pthread_mutex_unlock(&task.data->mutex);
     }
 }
 
@@ -661,17 +656,16 @@ int* calculate(int color, int** board){
         printf("[%d] func = %p, returned = %d\n", i, parray[i].func, parray[i].returned);
     }
     pthread_mutex_unlock(&calcpool.mutex);
-
+    printf("MILESTONE 1\n");
     for(i = 0;i < calcfuncsize;i++){
-        printf("WAITING FOR %d\n",i);
         pthread_mutex_lock(&parray[i].mutex);
         while(!parray[i].returned){
+            printf("WAITING FOR %d\n",i);
             pthread_cond_wait(&parray[i].cond,&parray[i].mutex);
         }
         pthread_mutex_unlock(&parray[i].mutex);
     }
-    printf("MILESTONE 7\n");
-
+    printf("MILESTONE 2\n");
     int* sum = (int*)malloc(1 * sizeof(int));
     for(i = 0;i < calcfuncsize;i++){
         *sum += parray[i].result;
@@ -820,7 +814,10 @@ void* search(void *arg){
             pthread_mutex_lock(&generalpool.mutex);
             if (generalpool.taskcount >= THREADSIZE-calcfuncsize){
                 pthread_mutex_unlock(&generalpool.mutex);
+                printf("NORMAL SEARCH STARTED\n");
                 array[length-1][0] = *(int*)search((void*)datas[k]);
+                datas[k]->returned = true;
+                printf("NORMAL SEARCH FINISHED\n");
             }
             else{
                 pthread_mutex_unlock(&generalpool.mutex);
@@ -838,7 +835,7 @@ void* search(void *arg){
     }
 
     for(k = 0;k < usedindex;k++){
-        printf("WAITING FOR %d\n",k);
+        printf("SEARCH WAITING FOR %d\n",k);
         pthread_mutex_lock(&datas[used[k]]->mutex);
         while(!datas[used[k]]->returned){
             pthread_cond_wait(&datas[used[k]]->cond,&datas[used[k]]->mutex);
@@ -847,6 +844,7 @@ void* search(void *arg){
         
         array[k][0] = datas[used[k]]->result;
     }
+    printf("SEARCH WAIT FINISHED\n");
     if (ret){
         printf("FINALLY\n");
     }
@@ -883,12 +881,14 @@ int* best_place(int x, int y,int step, int lx, int ly){
     // neden calcpoolun tasklerinin datalarına yer vermişim de generalpoolun vermemişim
     // ve sorun bundan kaynaklı olabilir mi?
 
-    pthread_mutex_init(&calcpool.mutex,NULL);
-    pthread_cond_init(&calcpool.cond,NULL);
+    
     for(i = 0;i < calcfuncsize;i++){
         calcpool.tasks[i].data = (Data2*)malloc(sizeof(Data2));
         calcpool.tasks[i].data->returned = false;
+        calcpool.tasks[i].exit = false;
     }
+    calcpool.exit = false;
+    
     for(i = 0;i < calcfuncsize;i++){
         pthread_create(&calcpool.threads[i],NULL,calcworkers,&calcpool);
     }
@@ -899,6 +899,14 @@ int* best_place(int x, int y,int step, int lx, int ly){
     generalpool.tasks = (Taskgeneral*)malloc((THREADSIZE-calcfuncsize) * sizeof(Taskgeneral));
     pthread_mutex_init(&generalpool.mutex,NULL);
     pthread_cond_init(&generalpool.cond,NULL);
+
+    for(i = 0;i < THREADSIZE - calcfuncsize;i++){
+        generalpool.tasks[i].data = (Data*)malloc(sizeof(Data));
+        generalpool.tasks[i].data->returned = false;
+        generalpool.tasks[i].exit = false;
+    }
+    generalpool.exit = false;
+
     for(i = 0;i < THREADSIZE-calcfuncsize;i++){
         pthread_create(&generalpool.threads[i],NULL,generalworkers,&generalpool);
     }
@@ -966,9 +974,7 @@ int* best_place(int x, int y,int step, int lx, int ly){
     
     fclose(file);
     
-    for(i = 0;i < calcfuncsize;i++){
-        calcpool.tasks[i].exit = false;
-    }
+    
     
     pthread_mutex_lock(&calcpool.mutex);
     calcpool.exit = true;
@@ -980,9 +986,7 @@ int* best_place(int x, int y,int step, int lx, int ly){
     }
     printf("CALS ARE JOINED\n");
     
-    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
-        generalpool.tasks[i].exit = false;
-    }
+    
     pthread_mutex_lock(&generalpool.mutex);
     generalpool.exit = true;
     pthread_cond_broadcast(&generalpool.cond);
@@ -993,8 +997,6 @@ int* best_place(int x, int y,int step, int lx, int ly){
         //free(generalpool.tasks[i].data);
     }  
     printf("GENERAL ARE JOINED\n");
-    pthread_mutex_destroy(&calcpool.mutex);
-    pthread_mutex_destroy(&generalpool.mutex);
     return temp;
 }
 
@@ -1002,6 +1004,9 @@ int main(){
     int i,j;
     ones = (int**)malloc(1 * sizeof(int*));
     // make everywhere empty
+
+    pthread_mutex_init(&calcpool.mutex,NULL);
+    pthread_cond_init(&calcpool.cond,NULL);
 
     for (i = 0;i < 8; i++){
         for (j = 0;j < 8;j++){
