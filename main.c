@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define THREADSIZE 18
+#define THREADSIZE 13
 #define calcfuncsize 6 
 #define rows 8
 #define columns 8
@@ -808,15 +808,18 @@ void* search(void *arg){
             memcpy(datas[k]->path, result2, 33 * sizeof(int));
             datas[k]->returned = false;
             datas[k]->result = -1;
-            pthread_cond_init(&datas[k]->cond,NULL);
             pthread_mutex_init(&datas[k]->mutex,NULL);
+            pthread_cond_init(&datas[k]->cond,NULL);
 
             pthread_mutex_lock(&generalpool.mutex);
             if (generalpool.taskcount >= THREADSIZE-calcfuncsize){
                 pthread_mutex_unlock(&generalpool.mutex);
                 printf("NORMAL SEARCH STARTED\n");
-                array[length-1][0] = *(int*)search((void*)datas[k]);
+                pthread_mutex_lock(&datas[k]->mutex);
+                datas[k]->result = *(int*)search((void*)datas[k]);
                 datas[k]->returned = true;
+                pthread_cond_signal(&datas[k]->cond);
+                pthread_mutex_unlock(&datas[k]->mutex);
                 printf("NORMAL SEARCH FINISHED\n");
             }
             else{
@@ -854,10 +857,10 @@ void* search(void *arg){
             maximum = array[i][0];
             result[0] = array[i][1];
             result[1] = array[i][2];
-            free(array[i]);
+            //free(array[i]);
         }
     }
-    free(array);
+    //free(array);
     
     if (ret){
         return (void*)result;
@@ -877,7 +880,7 @@ int* best_place(int x, int y,int step, int lx, int ly){
     calcpool.head = 0;
     calcpool.taskcount = 0;
     calcpool.tasks = (Taskcalc*)malloc(calcfuncsize * sizeof(Taskcalc));
-
+    
     // neden calcpoolun tasklerinin datalarına yer vermişim de generalpoolun vermemişim
     // ve sorun bundan kaynaklı olabilir mi?
 
@@ -897,10 +900,9 @@ int* best_place(int x, int y,int step, int lx, int ly){
     generalpool.head = 0;
     generalpool.taskcount = 0;
     generalpool.tasks = (Taskgeneral*)malloc((THREADSIZE-calcfuncsize) * sizeof(Taskgeneral));
-    pthread_mutex_init(&generalpool.mutex,NULL);
-    pthread_cond_init(&generalpool.cond,NULL);
+    
 
-    for(i = 0;i < THREADSIZE - calcfuncsize;i++){
+    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
         generalpool.tasks[i].data = (Data*)malloc(sizeof(Data));
         generalpool.tasks[i].data->returned = false;
         generalpool.tasks[i].exit = false;
@@ -1007,6 +1009,8 @@ int main(){
 
     pthread_mutex_init(&calcpool.mutex,NULL);
     pthread_cond_init(&calcpool.cond,NULL);
+    pthread_mutex_init(&generalpool.mutex,NULL);
+    pthread_cond_init(&generalpool.cond,NULL);
 
     for (i = 0;i < 8; i++){
         for (j = 0;j < 8;j++){
