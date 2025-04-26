@@ -17,9 +17,13 @@
 // 2 tane daha fazla var
 pthread_mutex_t mutexcalcrunning = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t finishcond = PTHREAD_COND_INITIALIZER;
+bool finish = false;
 
 int area = 0, userframe = -1, pcframe = -1;
 int genstep = -1;
+
+int finishsize = 0;
 
 int board2[8][8];
 FILE* file ;
@@ -96,7 +100,7 @@ typedef struct {
 // olay 99.99999% bu kısımla alakalı hele 3. yorum satırındaki olay kesin bişeyler diyo
 
 typedef struct {
-    void* (*func)(void*);
+    void (*func)(void*);
     Data* data;
     bool exit;
 } Taskgeneral;
@@ -121,7 +125,7 @@ Taskgeneral generalpop(){
     Taskgeneral task;
     pthread_mutex_lock(&generalpool.mutex);
     
-    while (generalpool.taskcount == 0 && !generalpool.give && !generalpool.exit){
+    while (!generalpool.give && !generalpool.exit){
         pthread_cond_wait(&generalpool.cond_give, &generalpool.mutex);
     }
 
@@ -141,7 +145,8 @@ Taskgeneral generalpop(){
     if (generalpool.head >= THREADSIZE){
         generalpool.head = 0;
     }
-    
+    generalpool.add = true;
+    pthread_cond_signal(&generalpool.cond_add);
     pthread_mutex_unlock(&generalpool.mutex);
     return task;
 }
@@ -152,11 +157,16 @@ void* generalworkers(void* arg){
         if (task.exit){
             return NULL;
         }
-                
-        task.data->result = (int*)task.func(task.data);
+            
+        if (generalpool.taskcount <= 0){
+            generalpool.give = false;
+            
+        }else if (generalpool.taskcount >= THREADSIZE){
+            generalpool.add = false;
+        }
+        pthread_cond_signal(&finishcond);
+        task.func(task.data);
         task.data->returned = true;
-        generalpool.add = true;
-        pthread_cond_signal(&generalpool.cond_add);
         
     }
 }
@@ -174,7 +184,7 @@ void addgeneraltask(void* arg){
     if (generalpool.tail >= THREADSIZE){
         generalpool.tail = 0;
     }
-    
+    generalpool.give = true;
     pthread_cond_signal(&generalpool.cond_give);
     pthread_mutex_unlock(&generalpool.mutex);
 }
@@ -588,6 +598,8 @@ void append(Data *data){
     decisionboard[decisionboardlen][1] = data->path[3];
     decisionboard[decisionboardlen][2] = data->path[4];
     decisionboardlen++;
+    finishsize--;
+    
     /*file = fopen("data.txt","a");
     for(int i = 0;i < path_size;i++){
         fprintf(file,"%d,",data->path[i]);
@@ -644,6 +656,9 @@ void search(void *arg){
                 datas[k]->x = data->x + directions[k][0];
                 datas[k]->y = data->y + directions[k][1];
                 datas[k]->step = data->step - 1;
+                if (data->step - 1 == 0){
+                    finishsize++;
+                }
                 datas[k]->not_x = data->x;
                 datas[k]->not_y = data->y;
                 datas[k]->color = data->color;
@@ -697,6 +712,8 @@ int* best_place(int x, int y,int step, int lx, int ly){
         generalpool.tasks[i].exit = false;
     }
     generalpool.exit = false;
+    generalpool.add = true;
+    generalpool.give = false;
 
     for(i = 0;i < THREADSIZE;i++){
         pthread_create(&generalpool.threads[i],NULL,generalworkers,&generalpool);
@@ -727,7 +744,7 @@ int* best_place(int x, int y,int step, int lx, int ly){
     data.not_y = ly;
     data.color = 2;
     data.ret = true;
-    data.result = -1;
+    *data.result = -1;
     data.returned = false;
 
     int** board3 = (int**)malloc(8 * sizeof(int*));
@@ -749,8 +766,15 @@ int* best_place(int x, int y,int step, int lx, int ly){
     data.path[2] = y;
     
     addgeneraltask((void*)&data);
-    // waitle
+    pthread_mutex_lock(&generalpool.mutex);
+    while (!generalpool.add || generalpool.give){
+        pthread_cond_wait(&finishcond, &generalpool.mutex);
+    }
+    pthread_mutex_unlock(&generalpool.mutex);
     printf("KEEPS GOING\n");
+    temp = (int*)malloc(2 * sizeof(int));
+    temp[0] = 0;
+    temp[1] = 0;
     board2[temp[0]][temp[1]] = 2;
 
     j = newnode[temp[0]][temp[1]]->frame;
@@ -769,7 +793,7 @@ int* best_place(int x, int y,int step, int lx, int ly){
     pthread_cond_broadcast(&generalpool.cond);
     pthread_mutex_unlock(&generalpool.mutex);
 
-    for(i = 0;i < THREADSIZE-calcfuncsize;i++){
+    for(i = 0;i < THREADSIZE;i++){
         pthread_join(generalpool.threads[i],NULL);
         //free(generalpool.tasks[i].data);
     }  
