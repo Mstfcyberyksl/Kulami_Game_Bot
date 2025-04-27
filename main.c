@@ -23,7 +23,8 @@ bool finish = false;
 int area = 0, userframe = -1, pcframe = -1;
 int genstep = -1;
 
-int finishsize = 0;
+int finishsize1 = 0;
+int finishsize2 = 0;
 
 int board2[8][8];
 FILE* file ;
@@ -103,17 +104,18 @@ typedef struct {
     void (*func)(void*);
     Data* data;
     bool exit;
+    int index;
 } Taskgeneral;
 
 typedef struct {
     pthread_t threads[THREADSIZE];
     Taskgeneral* tasks;
-    int tail;
-    int head;
+    int* available;
+    int index;
+    
     int taskcount;
     bool exit;
-    bool add;
-    bool give;
+    
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     pthread_cond_t cond_add;
@@ -125,7 +127,8 @@ Taskgeneral generalpop(){
     Taskgeneral task;
     pthread_mutex_lock(&generalpool.mutex);
     
-    while (!generalpool.give && !generalpool.exit){
+    while (generalpool.taskcount == 0 && !generalpool.exit){
+        printf("wait");
         pthread_cond_wait(&generalpool.cond_give, &generalpool.mutex);
     }
 
@@ -138,14 +141,12 @@ Taskgeneral generalpop(){
     if (generalpool.taskcount < 0){
         printf("ERROR: generalpool.taskcount < 0\n");
     }
-    task = generalpool.tasks[generalpool.head];
-    
+    task = generalpool.tasks[generalpool.available[generalpool.index-1]];
+    generalpool.available[generalpool.index-1] = -1;
+    generalpool.index--;
     generalpool.taskcount--;
-    generalpool.head++;
-    if (generalpool.head >= THREADSIZE){
-        generalpool.head = 0;
-    }
-    generalpool.add = true;
+    
+    printf("continue");
     pthread_cond_signal(&generalpool.cond_add);
     pthread_mutex_unlock(&generalpool.mutex);
     return task;
@@ -158,13 +159,7 @@ void* generalworkers(void* arg){
             return NULL;
         }
             
-        if (generalpool.taskcount <= 0){
-            generalpool.give = false;
-            
-        }else if (generalpool.taskcount >= THREADSIZE){
-            generalpool.add = false;
-        }
-        pthread_cond_signal(&finishcond);
+        
         task.func(task.data);
         task.data->returned = true;
         
@@ -173,18 +168,19 @@ void* generalworkers(void* arg){
 
 void addgeneraltask(void* arg){
     pthread_mutex_lock(&generalpool.mutex);
-    while(!generalpool.add){
+    while(generalpool.taskcount == THREADSIZE){
         pthread_cond_wait(&generalpool.cond_add, &generalpool.mutex);
     }
-    generalpool.tasks[generalpool.tail].func = search;
-    generalpool.tasks[generalpool.tail].data = (Data*)arg;
-    generalpool.tasks[generalpool.tail].exit = false;
-    generalpool.tail++;
+    
+    generalpool.available[generalpool.index] = generalpool.index;
+    
+    generalpool.tasks[generalpool.index].func = search;
+    generalpool.tasks[generalpool.index].data = (Data*)arg;
+    generalpool.tasks[generalpool.index].exit = false;
+    generalpool.index++;
     generalpool.taskcount++;
-    if (generalpool.tail >= THREADSIZE){
-        generalpool.tail = 0;
-    }
-    generalpool.give = true;
+    
+    
     pthread_cond_signal(&generalpool.cond_give);
     pthread_mutex_unlock(&generalpool.mutex);
 }
@@ -598,7 +594,8 @@ void append(Data *data){
     decisionboard[decisionboardlen][1] = data->path[3];
     decisionboard[decisionboardlen][2] = data->path[4];
     decisionboardlen++;
-    finishsize--;
+    finishsize1--;
+    pthread_cond_signal(&finishcond);
     
     /*file = fopen("data.txt","a");
     for(int i = 0;i < path_size;i++){
@@ -608,6 +605,8 @@ void append(Data *data){
     fclose(file);*/
 }
 void search(void *arg){
+    printf("ha");
+    finishsize2++;
     Data* data = (Data*)arg;
     if (data->step == 0){
         data->path[0] = *calculate(2,data->board);
@@ -657,7 +656,7 @@ void search(void *arg){
                 datas[k]->y = data->y + directions[k][1];
                 datas[k]->step = data->step - 1;
                 if (data->step - 1 == 0){
-                    finishsize++;
+                    finishsize1++;
                 }
                 datas[k]->not_x = data->x;
                 datas[k]->not_y = data->y;
@@ -690,7 +689,8 @@ void search(void *arg){
 
     //freedata(data);
     //free(data);
-
+    finishsize2--;
+    pthread_cond_signal(&finishcond);
     
 }
 
@@ -700,20 +700,20 @@ int* best_place(int x, int y,int step, int lx, int ly){
     // neden calcpoolun tasklerinin datalarına yer vermişim de generalpoolun vermemişim
     // ve sorun bundan kaynaklı olabilir mi?
     
-    generalpool.tail = 0;
-    generalpool.head = 0;
     generalpool.taskcount = 0;
     generalpool.tasks = (Taskgeneral*)malloc((THREADSIZE) * sizeof(Taskgeneral));
-    
+    generalpool.available = (int*)malloc(THREADSIZE * sizeof(int));
+    generalpool.index = 0;
 
     for(i = 0;i < THREADSIZE;i++){
         generalpool.tasks[i].data = (Data*)malloc(sizeof(Data));
         generalpool.tasks[i].data->returned = false;
         generalpool.tasks[i].exit = false;
+        generalpool.available[i] = -1;
+        
     }
     generalpool.exit = false;
-    generalpool.add = true;
-    generalpool.give = false;
+    
 
     for(i = 0;i < THREADSIZE;i++){
         pthread_create(&generalpool.threads[i],NULL,generalworkers,&generalpool);
@@ -767,7 +767,7 @@ int* best_place(int x, int y,int step, int lx, int ly){
     
     addgeneraltask((void*)&data);
     pthread_mutex_lock(&generalpool.mutex);
-    while (!generalpool.add || generalpool.give){
+    while (finishsize1 > 0 && finishsize2 > 0){
         pthread_cond_wait(&finishcond, &generalpool.mutex);
     }
     pthread_mutex_unlock(&generalpool.mutex);
